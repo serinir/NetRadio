@@ -9,42 +9,39 @@
 
 int main() {
 
-  int sock=socket(PF_INET, SOCK_DGRAM, 0);
+    struct addrinfo *first_info;
 
-  struct sockaddr_in address_sock;
-  address_sock.sin_family=AF_INET;
-  // Numero 5555 temporaire où le client écoute reponse du gestionnaire
-  address_sock.sin_port=htons(5555); 
-  address_sock.sin_addr.s_addr=htonl(INADDR_ANY);
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
 
-  int rbind =bind(sock,(struct sockaddr *)&address_sock,sizeof(struct 
-                                sockaddr_in));
-  struct sockaddr_in emet;
-  socklen_t a=sizeof(emet);
+    hints.ai_family = AF_INET;
+    hints.ai_socktype=SOCK_STREAM;
 
-  struct addrinfo *first_info;
+    // Recherche de gestionnaire, 5555 numéro temporaire
+    int rgai = getaddrinfo("localhost", "5555" ,&hints, &first_info); 
 
-  struct addrinfo hints;
-  memset(&hints, 0, sizeof(struct addrinfo));
+    if(rgai==0 ){
+        if(first_info!=NULL){
+            struct sockaddr_in *address_in = (struct sockaddr_in *) first_info->ai_addr;
+            // Numero 5555 temporaire où le client communique gestionnaire
+            address_in->sin_port = htons(5555);
+            int sock=socket(PF_INET, SOCK_STREAM, 0);
+            int r2 = connect(sock, (struct sockaddr*) address_in, sizeof(struct sockaddr_in));
 
-  hints.ai_family = AF_INET;
-  hints.ai_socktype=SOCK_DGRAM;
+            if(r2 != -1) {
+                char cmdList[5];
+                char reponseGest[100000]; // Numero arbitraire, le temps de calculer vraie valeur de la taille de la liste des diffuseurs
+                
+                strcpy(cmdList, "LIST");
+                send(sock, cmdList, strlen(cmdList) * sizeof(char), 0);
 
-  int rgai = getaddrinfo("localhost", "5555" ,&hints,&first_info); // Recherche de gestionnaire
+                int rec = recv(sock, reponseGest, 100000 * sizeof(char), 0);
+                reponseGest[rec] = '\0';
 
-  if(rgai==0 && rbind == 0){
-    if(first_info!=NULL){
-        struct sockaddr *saddr=first_info->ai_addr;
-        char cmdList[5];
-        char reponseGest[100000]; // Numero arbitraire, le temps de calculer vraie valeur de la taille de la liste des diffuseurs
-        strcpy(cmdList, "LIST");
-        sendto(sock, cmdList, strlen(cmdList), 0, saddr, 
-                    (socklen_t) sizeof(struct sockaddr_in));
+                close(sock);
+            }
 
-        int rec=recvfrom(sock, reponseGest, 100000, 0, (struct sockaddr *)&emet, &a);
-        reponseGest[rec]='\0';
-
+        }
     }
-  }
-  return 0;
+    return 0;
 }
