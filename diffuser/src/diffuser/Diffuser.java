@@ -7,11 +7,18 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.Vector;
+
+import checker.Checker;
+import checker.Data;
+import checker.Checker.MessData;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
@@ -39,6 +46,43 @@ class Message{
     }
     public int length(){
         return this.messages_queue.size();
+    }
+}
+
+class Client{
+    /**
+     * utility class to manage client more easily
+     * it takes the client socket as argument for the constructore
+     * - all the Socket methods are accessible trhough the  {@link #use_sock()} method
+     * - usernamer can be added through the {@link #register_username(String)} method
+     * - {@link #client_id} is the id received frome the client it should be set only once
+     */
+    private Socket sock;
+    private String username = null;
+    private String client_id = null;
+    Client(Socket cl){
+        sock = cl;
+    }
+    public Socket use_sock(){
+        return sock;
+    }
+    
+    public void register_username(String username){
+            this.username=username;
+    }
+
+    public void setClient_id(String client_id) throws Exception {
+        if(client_id != null)
+            this.client_id = client_id;
+        else
+            throw new Exception("unauthorized modification");
+    }
+    public String getClient_id() {
+        return client_id;
+    }
+    @Override
+    public String toString() {
+        return  this.username != null ? this.username : "client " + String.valueOf(this.sock.getPort())  ;
     }
 }
 /**
@@ -95,9 +139,10 @@ public class Diffuser{
     public void run(){
         try {
             this.connected = true;
-            if(messages.length()>0 && !this.last_message_sent)
+            if(messages.length()>0 && !this.last_message_sent){
                 Broadcast_message(this.messages.get_message(-1));
                 this.last_message_sent= true;
+            }
         } catch (Exception e) {
             e.printStackTrace();
             logerr("message not sent");
@@ -114,14 +159,7 @@ public class Diffuser{
         udp_broadcast_socket.send(diffused);
         log("message broadcasted");
     }
-    /**
-     * log the errors in the terminal
-     * @param err 
-     */
-    public static void logerr(String err){
-        SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
-        System.out.println("[-] "+formatter.format(new Date())+" "+err);
-    }
+    
     /**
      * start the tcp server : bind on port SERV_PORT
      * @see #env
@@ -134,7 +172,11 @@ public class Diffuser{
         } catch(IOException e) {
             logerr("cannot open a new Tcp socket");
         }
-        log("TCP SERVER ON");
+        try {
+            log("TCP SERVER RUNING ON : "+Inet4Address.getLocalHost().getHostAddress()+":"+this.env.get("SERV_PORT"));
+        } catch (UnknownHostException e) {
+            log("TCP SERVER RUNING ON : "+"localhost"+":"+this.env.get("SERV_PORT"));
+        }
     }
     /**
      * listen and process requests
@@ -143,56 +185,79 @@ public class Diffuser{
     public void listen(){
         while(true){
             try {
-                Socket client = this.chat_socket.accept();
+                // the accept() methode throw an exception when it reaches the maximum amount of connections
+                // the exception is handled by the catch and is logged
+                // the accept() methode create a new instance of Socket 
+                Socket client = this.chat_socket.accept(); 
                 log("client " + String.valueOf(client.getPort()) +
                         client.getInetAddress().getHostAddress() +
                         " Connected");
                 new Thread(()->{
+                    // we save the socket client reference  
+                    // car elle va etre ecraser a la prochain connection 
+                    Client thread_client = new Client(client);
                     try {
-                        BufferedReader br = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                        PrintWriter pw = new PrintWriter(new OutputStreamWriter(client.getOutputStream()));
-                        String message = br.readLine();
-                        pw.print("ACKM");
-                        pw.flush();
-                        if(is_well_formatted_mess(message)){
-                            this.messages.add_message("aha", "ihi");
-                            this.last_message_sent=false;
-                        }
+                        while(true){
+                            BufferedReader br = new BufferedReader(new InputStreamReader(thread_client.use_sock().getInputStream()));
+                            PrintWriter pw = new PrintWriter(new OutputStreamWriter(thread_client.use_sock().getOutputStream()));
+                            String message = br.readLine();
 
+                            if( message == null ) { 
+                                log("client " + thread_client +" Disconnected");
+                                thread_client.use_sock().close();
+                                break;
+                            }
+
+                            pw.print("ACKM");
+                            pw.flush();
+                            Data data = Checker.is_MESS(message);
+                            if(data != null){
+                                this.messages.add_message(((MessData) data).getMessage(), ((MessData) data).getId());
+                                this.last_message_sent=false;
+                            }else{
+                                logerr("received bad formated message from client:" + thread_client);
+                            }
+                        }
                     } catch (IOException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();
                     }
                 }).start();
-                
             } catch (IOException e) {
                 logerr("cannot accept more clients");
-
             }
             
 
         }
     }
     //
-    private boolean is_well_formatted_mess(String mess){
-        //TODO with REGEX
-        return true;
-    }
+    // private boolean is_well_formatted_mess(String mess){
+    //     //TODO with REGEX
+    //     return true;
+    // }
     //
-    synchronized private void update_messages(String message){
-        try {
-            messages.add_message("haloa","0001");
-        } catch (Exception e) {
-            logerr("couldn't add message to the queue");
-        }
-    }
+    // synchronized private void update_messages(String message){
+    //     try {
+    //         messages.add_message("haloa","0001");
+    //     } catch (Exception e) {
+    //         logerr("couldn't add message to the queue");
+    //     }
+    // }
     /**
      * log the states in the terminals
      * @param _log
      */
     public static void log(String _log){
         SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
-        System.out.println("[+] "+formatter.format(new Date())+" "+_log);
+        System.out.println("\u001B[32m [+] \u001B[0m"+formatter.format(new Date())+" "+_log);
+    }
+    /**
+     * log the errors in the terminal
+     * @param err 
+     */
+    public static void logerr(String err){
+        SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
+        System.out.println("\u001B[31m [-] \u001B[0m"+formatter.format(new Date())+" "+err);
     }
     /**
      * @return {@link #frequencey}
