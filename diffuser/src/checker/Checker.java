@@ -25,22 +25,18 @@ public class Checker {
         LastData(String nb){
             this.nb=nb;
         }
-        public String getNb() {
-            return nb;
+        public int getNb() {
+            return Integer.valueOf(nb);
         }
     }
-
-    public static Data is_MESS(String mess){
-        Matcher mess_match = Pattern.compile("MESS\\s(\\d{1,4})\\s(\\w{1,140})").matcher(mess);
-        if (mess_match.matches())
-            return new MessData(mess_match.group(1),mess_match.group(2));
-        return null;
-    }
-    public static Data is_LAST(String mess){
-        Matcher last_match = Pattern.compile("LAST\\s\\(d+)").matcher(mess);
-        if (last_match.matches())
-            return new LastData(last_match.group(1));
-        return null;
+    public static Data check(String mess){
+        Matcher match = Pattern.compile("MESS\\s(\\d{1,4})\\s(\\w{1,140})").matcher(mess);
+        if (match.matches())
+            return new MessData(match.group(1),match.group(2));
+        match = Pattern.compile("LAST\\s(\\d+)").matcher(mess);
+        if (match.matches())
+            return new LastData(match.group(1));
+        else return null;
     }
 
 }

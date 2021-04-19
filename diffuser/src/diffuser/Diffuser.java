@@ -71,18 +71,16 @@ class Client{
             this.username=username;
     }
 
-    public void setClient_id(String client_id) throws Exception {
+    public void setClient_id(String client_id) {
         if(client_id != null)
             this.client_id = client_id;
-        else
-            throw new Exception("unauthorized modification");
     }
     public String getClient_id() {
         return client_id;
     }
     @Override
     public String toString() {
-        return  this.username != null ? this.username : "client " + String.valueOf(this.sock.getPort())  ;
+        return  this.username != null ? this.username : this.client_id != null ? this.client_id : String.valueOf(this.sock.getPort())  ;
     }
 }
 /**
@@ -91,6 +89,12 @@ class Client{
  * 
  */
 public class Diffuser{
+    //CONSTANTE
+    private String _ENDTOKEN = "ENDM";
+    private String _ACKMTOKEN = "ACMK";
+    private String _IMOK = "IMOK";
+
+
     private Map<String,String> env;
     // private char[] sid = new char[8];
     // private int single_port;
@@ -164,7 +168,7 @@ public class Diffuser{
      * start the tcp server : bind on port SERV_PORT
      * @see #env
      */
-    public void start_tcp_server()  {
+    public void start_tcp_thread_server()  {
         try {
             chat_socket = new ServerSocket(Integer.parseInt(this.env.get("SERV_PORT")));
         } catch (NumberFormatException e){
@@ -208,12 +212,21 @@ public class Diffuser{
                                 break;
                             }
 
-                            pw.print("ACKM");
-                            pw.flush();
-                            Data data = Checker.is_MESS(message);
-                            if(data != null){
+                            Data data = Checker.check(message);
+                            if(data instanceof Checker.MessData){
                                 this.messages.add_message(((MessData) data).getMessage(), ((MessData) data).getId());
+                                thread_client.setClient_id(  ((MessData) data).getId()  );
                                 this.last_message_sent=false;
+                                pw.print(_ACKMTOKEN);
+                                pw.flush();
+                            }else if(data instanceof Checker.LastData){
+                                int nb = ((Checker.LastData) data).getNb();
+                                for (int i = 0;i<messages.length() && i < nb; i++) {
+                                    pw.print( new String(messages.get_message( message.length()-1-i)) );
+                                    pw.flush();
+                                }
+                                pw.print(_ENDTOKEN);
+                                pw.flush();
                             }else{
                                 logerr("received bad formated message from client:" + thread_client);
                             }
@@ -243,6 +256,7 @@ public class Diffuser{
     //         logerr("couldn't add message to the queue");
     //     }
     // }
+
     /**
      * log the states in the terminals
      * @param _log

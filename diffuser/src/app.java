@@ -20,7 +20,7 @@ public class app {
             }
         ).start();
         new Thread(()->{
-            room.start_tcp_server();
+            room.start_tcp_thread_server();
             while(true){
                 try {
                     room.listen();
