@@ -19,6 +19,7 @@ import checker.Checker;
 import checker.Data;
 import checker.Checker.MessData;
 
+import java.text.BreakIterator;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
@@ -33,7 +34,10 @@ class Message{
     } 
     static byte[] format(String mess,String id){
         byte[] message;
-        message = ("DIFF "+ String.valueOf(message_number)+" "+id+ " "+mess).getBytes();
+        String mess_num = String.valueOf(message_number);
+            while(mess_num.length()<4)
+                mess_num = "0"+mess_num;
+        message = ("DIFF "+ mess_num +" "+id+ " "+mess.substring(0, 140)+"\r\n").getBytes();
         message_number++;
         return message;
     }
@@ -90,9 +94,9 @@ class Client{
  */
 public class Diffuser{
     //CONSTANTE
-    private String _ENDTOKEN = "ENDM";
-    private String _ACKMTOKEN = "ACMK";
-    private String _IMOK = "IMOK";
+    private String _ENDTOKEN = "ENDM\r\n";
+    private String _ACKMTOKEN = "ACKM\r\n";
+    private String _IMOK = "IMOK\r\n";
 
 
     private Map<String,String> env;
@@ -167,6 +171,7 @@ public class Diffuser{
     /**
      * start the tcp server : bind on port SERV_PORT
      * @see #env
+     * soon to be deprecated
      */
     public void start_tcp_thread_server()  {
         try {
@@ -211,7 +216,7 @@ public class Diffuser{
                                 thread_client.use_sock().close();
                                 break;
                             }
-
+                            System.out.println("received this : "+message);
                             Data data = Checker.check(message);
                             if(data instanceof Checker.MessData){
                                 this.messages.add_message(((MessData) data).getMessage(), ((MessData) data).getId());
@@ -219,16 +224,19 @@ public class Diffuser{
                                 this.last_message_sent=false;
                                 pw.print(_ACKMTOKEN);
                                 pw.flush();
+                                thread_client.use_sock().close();
+                                break;
                             }else if(data instanceof Checker.LastData){
                                 int nb = ((Checker.LastData) data).getNb();
+                                System.out.println(nb);
                                 for (int i = 0;i<messages.length() && i < nb; i++) {
-                                    pw.print( new String(messages.get_message( message.length()-1-i)) );
+                                    pw.print("OLDM" + new String(messages.get_message( messages.length()-1-i)).substring(4) );
                                     pw.flush();
                                 }
                                 pw.print(_ENDTOKEN);
                                 pw.flush();
                             }else{
-                                logerr("received bad formated message from client:" + thread_client);
+                                logerr("received bad formated message from client: " + thread_client+" : "+ message);
                             }
                         }
                     } catch (IOException e) {
