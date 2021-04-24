@@ -9,9 +9,15 @@
 
 #define LEN_ITEM 55
 #define LEN_LINB 7
+#define LEN_OLDM 25
 
-void chat_diffuseur(void *arg);
-void chat_gestionnaire(void *arg);
+void * chat_diffuseur(void *arg);
+void * chat_gestionnaire(void *arg);
+
+struct info_client {
+    int sock;
+    char * id;
+};
 
 int main() {
 
@@ -62,15 +68,15 @@ int main() {
                 printf("Quel diffuseur voulez-vous écouter ?\n");
                 read(0, nb_diff, 2); // Lecture du numéro du diffuseur à écouter
 
-                int sock_diff=socket(PF_INET,SOCK_DGRAM,0);
+                int sock_diff=socket(PF_INET, SOCK_DGRAM, 0);
 
                 int ok=1;
                 int r=setsockopt(sock_diff, SOL_SOCKET, SO_REUSEPORT, &ok, sizeof(ok)); // PORT REUTILISABLE, DESFOIS ON MET SO_REUSEADDR ( pour le projet notamment )
 
                 struct sockaddr_in address_sock;
-                address_sock.sin_family=AF_INET;
-                address_sock.sin_port=htons(9999);
-                address_sock.sin_addr.s_addr=htonl(INADDR_ANY);
+                address_sock.sin_family = AF_INET;
+                address_sock.sin_port = htons(9999);
+                address_sock.sin_addr.s_addr = htonl(INADDR_ANY);
 
                 r=bind(sock_diff, (struct sockaddr *)&address_sock, 
                     sizeof(struct sockaddr_in));
@@ -100,4 +106,74 @@ int main() {
         }
     }
     return 0;
+}
+
+void * chat_diffuseur(void * arg){
+    struct info_client * cli = (struct info_client *)arg;
+
+    int so = cli->sock;
+    char * id = cli->id;
+
+    struct sockaddr_in adress_sock;
+    adress_sock.sin_family = AF_INET;
+    adress_sock.sin_port = htons(4242);
+    inet_aton("127.0.0.1",&adress_sock.sin_addr);
+
+    int r=connect(so, (struct sockaddr *)&adress_sock,
+                sizeof(struct sockaddr_in));
+
+    if(r!=-1){
+        char choice[3];
+        char buffMess[160];
+        char Mess[140];
+
+        printf("Press S to send a message and R ro receive the last ones\n");
+        read(0, choice, 3);
+        if(strcmp(choice, "S")==0) {
+            sprintf(buffMess, "MESS %s", id);
+
+            int tailleMess = read(0, Mess, 140);
+            Mess[tailleMess] = '\0';
+
+            strcat(buffMess, Mess);
+            strcat(buffMess, "\r\n");
+
+            send(so, buffMess, strlen(buffMess)*sizeof(char), 0);
+            memset(buffMess, 0, strlen(buffMess));
+
+            int size_rec=recv(so, buffMess, 6*sizeof(char),0);
+            buffMess[size_rec]='\0';
+
+            printf("Message : %s\n",buffMess);
+        } else {
+            if(strcmp(choice, "R")==0) {
+                memset(choice, 0, strlen(choice));
+
+                printf("Choose a number between 0 et 999\n");
+                read(0, choice, 3);
+
+                int nb_mess = atoi(choice);
+                sprintf(buffMess, "LAST %d\r\n", nb_mess);
+
+                memset(buffMess, 0, strlen(buffMess));
+
+                int size_rec=recv(so, buffMess, nb_mess*LEN_OLDM*sizeof(char),0);
+                buffMess[size_rec]='\0';
+                printf("Les derniers messages sont: %s\n",buffMess);
+
+                memset(buffMess, 0, strlen(buffMess));
+
+                int size_rec=recv(so, buffMess, 6*sizeof(char),0);
+                buffMess[size_rec]='\0';
+
+                printf("Message : %s\n",buffMess);
+            }
+        }
+
+    }
+    
+    free(arg);
+    close(so);
+
+    return NULL;
 }
