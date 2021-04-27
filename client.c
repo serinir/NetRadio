@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -20,6 +21,12 @@ struct info_client {
 };
 
 int main() {
+
+    char * id_cli = malloc(9 * sizeof(char));
+
+    printf("Quel est votre id ?\n");
+    int n_carac;
+    while((n_carac = read(0, id_cli, 8)) > 8);
 
     struct addrinfo *first_info;
 
@@ -41,10 +48,10 @@ int main() {
             int r2 = connect(sock, (struct sockaddr*) address_in, sizeof(struct sockaddr_in));
 
             if(r2 != -1) {
-                char cmdList[5];
+                char cmdList[7];
                 char reponseGest[100000]; // Numero arbitraire, le temps de calculer vraie valeur de la taille de la liste des diffuseurs
                 
-                strcpy(cmdList, "LIST");
+                strcpy(cmdList, "LIST\r\n");
                 send(sock, cmdList, strlen(cmdList) * sizeof(char), 0);
 
                 int rec = recv(sock, reponseGest, 100000 * sizeof(char), 0);
@@ -82,19 +89,22 @@ int main() {
                     sizeof(struct sockaddr_in));
 
                 struct ip_mreq mreq;
-                mreq.imr_multiaddr.s_addr=inet_addr("225.1.2.4");
+                char * ip_multi_diff = malloc(16 * sizeof(char));
+                mreq.imr_multiaddr.s_addr=inet_addr(strncpy(ip_multi_diff, tab_diff[atoi(nb_diff)]+14, 15)); // Choix du diffuseur
                 mreq.imr_interface.s_addr=htonl(INADDR_ANY);
 
                 r = setsockopt(sock_diff, IPPROTO_IP, 
                     IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)); // On abonne la socket
 
                 if (r==0) {
-                    char tampon[100];
                     
                     while(1){
-                        int rec = recv(sock_diff, tampon, 100, 0);
-                        tampon[rec] = '\0';
-                        printf("Message recu : %s\n",tampon);
+                        
+                        struct info_client i_cli;
+                        i_cli.id = strdup(id_cli);
+                        i_cli.sock = sock_diff;
+                        pthread_t th;
+                        pthread_create(&th, NULL, chat_diffuseur, &i_cli);
                     }   
                 }
 
@@ -163,7 +173,7 @@ void * chat_diffuseur(void * arg){
 
                 memset(buffMess, 0, strlen(buffMess));
 
-                int size_rec=recv(so, buffMess, 6*sizeof(char),0);
+                size_rec=recv(so, buffMess, 6*sizeof(char),0);
                 buffMess[size_rec]='\0';
 
                 printf("Message : %s\n",buffMess);
