@@ -61,11 +61,29 @@ void * lecture_term(void * arg) {
 
     char cmd[100];
 
-    while(1) {
-        read(0, cmd, 100);
-        printf("You're %s and your command is : %s\n", id, cmd);
-    }
+    char rep[5];
 
+    struct sockaddr_in adress_sock;
+    adress_sock.sin_family = AF_INET;
+    adress_sock.sin_port = htons(4242);
+    inet_aton("127.0.0.1", &adress_sock.sin_addr);
+
+    int sock = socket(PF_INET, SOCK_STREAM, 0);
+
+    int r = connect(sock, (struct sockaddr *) &adress_sock, sizeof(struct sockaddr_in));
+
+    if(r != -1) {
+        while(1) {
+            read(0, cmd, 100);
+            printf("You're %s and you want to transmit this : %s\n", id, cmd);
+
+            send(sock, cmd, strlen(cmd)*sizeof(char), 0);
+            int size_rec = recv(sock, rep, 5*sizeof(char), 0);
+            rep[size_rec] = '\0';
+        }
+
+        close(sock);
+    }
 
     return NULL;
 
