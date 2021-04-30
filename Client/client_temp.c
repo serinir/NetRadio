@@ -11,12 +11,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+
 void * lecture_term(void * arg);
 void * ecriture_term(void * arg);
 
 char id[100];
-
-char cmds[] = {'M', 'L'};
 
 int main() {
 
@@ -61,7 +60,7 @@ int main() {
 
 void * lecture_term(void * arg) {
 
-    char cmd[3];
+    // char cmd[3];
 
     char mess[150];
 
@@ -82,11 +81,13 @@ void * lecture_term(void * arg) {
 
         while(1) {
             while(1) {
-                r = read(0, cmd, 5);
-                if(r<=2 && (cmd[0]==cmds[0] || cmd[0]==cmds[1])) break;
+                r = getchar();
+                if(r=='M' || r=='L') break;
             }
 
-            if(cmd[0] == cmds[0]) {
+            printf("---> Commande choisie : %c\n", r);
+
+            if(r == 'M') { // Case M
 
                 while(1) {
                     r = read(0, mess, 150); // Retourne taille de l'input + 1
