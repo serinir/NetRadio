@@ -97,16 +97,16 @@ void * lecture_term(void * arg) {
 
                 mess[r-1] = '\0'; 
                 
-                int tailleCMD = strlen(mess);
-                printf("Taille commande %d\n", tailleCMD);
-                if(tailleCMD < 140) {
-                    for(int i=0; i< 140 - tailleCMD; i++) {
+                int tailleMess = strlen(mess);
+                printf("Taille message %d\n", tailleMess);
+                if(tailleMess < 140) {
+                    for(int i=0; i< 140 - tailleMess; i++) {
                         strcat(mess, "#");
                     }
                 }
                 
                 // printf("You're %s and you want to transmit this : %s of length %ld\n", id, mess, strlen(mess));
-                sprintf(cmdToSend, "MESS %s %s\r\n", id, mess);
+                sprintf(cmdToSend, "MESS %s %s\r", id, mess);
                 // strcat(mess, "\r");
                 send(sock, cmdToSend, strlen(cmdToSend)*sizeof(char), 0); // Envoie de MESS id message
                 int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
