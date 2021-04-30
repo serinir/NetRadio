@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define LEN_OLDM 159
+
 
 void * lecture_term(void * arg);
 void * ecriture_term(void * arg);
@@ -44,8 +46,8 @@ int main() {
 
     pthread_t th1, th2;
 
-    int rep1 = pthread_create(&th1, NULL, lecture_term, NULL);
-    int rep2 = pthread_create(&th2, NULL, ecriture_term, NULL);
+    int rep1 = pthread_create(&th1, NULL, lecture_term, NULL); // Lancement de thread qui s'occupe de la communication avec le diffuseur
+    int rep2 = pthread_create(&th2, NULL, ecriture_term, NULL); // Lancement du thread qui s'occupe d'écouter le diffuseur
     pthread_join(th1, NULL);
     pthread_join(th2, NULL);
 
@@ -63,6 +65,7 @@ void * lecture_term(void * arg) {
     // char cmd[3];
 
     char mess[150];
+    char nb_mess[5];
     char cmdToSend[170];
 
     char rep[5];
@@ -105,15 +108,54 @@ void * lecture_term(void * arg) {
                     }
                 }
                 
-                // printf("You're %s and you want to transmit this : %s of length %ld\n", id, mess, strlen(mess));
-                sprintf(cmdToSend, "MESS %s %s\r", id, mess);
-                // strcat(mess, "\r");
+    
+                sprintf(cmdToSend, "MESS %s %s\r\n", id, mess);
+                
                 send(sock, cmdToSend, strlen(cmdToSend)*sizeof(char), 0); // Envoie de MESS id message
                 int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
                 rep[size_rec] = '\0';
                 printf("%s\n", rep);
-            } else {
-                printf("Pas encore fait LAST\n");
+
+            } else { // Case L
+
+                while(1) {
+                    r = read(0, nb_mess, 5); // Retourne taille de l'input + 1
+                    if(r<=4) break;
+                }
+
+                nb_mess[r-1] = '\0';
+
+                char temp;
+
+                int tailleNbMess = strlen(nb_mess);
+                if(tailleNbMess < 3) {
+                    for(int i=0; i< 3 - tailleNbMess; i++) {
+                        strcat(nb_mess, "0");
+                    }
+
+                    temp = nb_mess[0];
+                    nb_mess[0] = nb_mess[2];
+                    nb_mess[2] = temp;
+                }
+
+
+                char * currentOldM = malloc(LEN_OLDM * sizeof(char)+4);
+
+                
+                printf("Vous allez recevoir au plus %d messages\n", atoi(nb_mess));
+
+                sprintf(cmdToSend, "LAST %s\r\n", nb_mess);
+
+                send(sock, cmdToSend, strlen(cmdToSend)*sizeof(char), 0);
+
+                int size_rec = 0;
+
+                do {
+                    size_rec = recv(sock, currentOldM, LEN_OLDM*sizeof(char)+15, 0); // Reception des OLD MESSAGES
+                    currentOldM[size_rec] = '\0';
+                    printf("%s\n", currentOldM);
+                } while(size_rec != 0);
+                
             }
 
         close(sock);
@@ -161,6 +203,7 @@ void * ecriture_term(void * arg) {
             int rec=recv(sock, tampon, 100, 0);
             tampon[rec]='\0';
             write(fd, tampon,strlen(tampon));
+            write(fd, "\n", 2);
         }   
     }
     
