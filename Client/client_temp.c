@@ -69,7 +69,7 @@ void * lecture_term(void * arg) {
 
     struct sockaddr_in adress_sock;
     adress_sock.sin_family = AF_INET;
-    adress_sock.sin_port = htons(4242);
+    adress_sock.sin_port = htons(5051);
     inet_aton("127.0.0.1", &adress_sock.sin_addr);
 
     int sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -136,14 +136,14 @@ void * ecriture_term(void * arg) {
 
     struct sockaddr_in address_sock;
     address_sock.sin_family=AF_INET;
-    address_sock.sin_port=htons(9999);
+    address_sock.sin_port=htons(5000);
     address_sock.sin_addr.s_addr=htonl(INADDR_ANY);
 
     r=bind(sock, (struct sockaddr *)&address_sock, 
         sizeof(struct sockaddr_in));
 
     struct ip_mreq mreq;
-    mreq.imr_multiaddr.s_addr=inet_addr("225.1.2.4");
+    mreq.imr_multiaddr.s_addr=inet_addr("225.10.20.30");
     mreq.imr_interface.s_addr=htonl(INADDR_ANY);
 
     r=setsockopt(sock, IPPROTO_IP, 
