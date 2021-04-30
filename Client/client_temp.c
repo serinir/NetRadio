@@ -103,8 +103,9 @@ void * lecture_term(void * arg) {
                         strcat(mess, "#");
                     }
                 }
-                printf("You're %s and you want to transmit this : %s\n", id, mess);
-
+                
+                printf("You're %s and you want to transmit this : %s of length %ld\n", id, mess, strlen(mess));
+                strcat(mess, "\r\n");
                 send(sock, mess, strlen(mess)*sizeof(char), 0); // Envoie de MESS id message
                 int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
                 rep[size_rec] = '\0';
