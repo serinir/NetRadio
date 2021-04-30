@@ -77,8 +77,8 @@ void * lecture_term(void * arg) {
             read(0, cmd, 100);
             printf("You're %s and you want to transmit this : %s\n", id, cmd);
 
-            send(sock, cmd, strlen(cmd)*sizeof(char), 0);
-            int size_rec = recv(sock, rep, 5*sizeof(char), 0);
+            send(sock, cmd, strlen(cmd)*sizeof(char), 0); // Envoie de MESS id message
+            int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
             rep[size_rec] = '\0';
         }
 
@@ -91,14 +91,14 @@ void * lecture_term(void * arg) {
 
 void * ecriture_term(void * arg) {
 
-    int fd = open("/dev/pts/3", O_RDWR);
+    int fd = open("/dev/pts/2", O_RDWR);
 
     if(fd==-1) {
         perror("open");
         exit(1);
     }
 
-    int sock=socket(PF_INET,SOCK_DGRAM,0);
+    int sock=socket(PF_INET, SOCK_DGRAM, 0);
 
     int ok=1;
     int r=setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &ok, sizeof(ok)); // PORT REUTILISABLE, DESFOIS ON MET SO_REUSEADDR ( pour le projet notamment )
