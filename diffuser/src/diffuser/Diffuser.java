@@ -37,7 +37,7 @@ class Message{
         String mess_num = String.valueOf(message_number);
             while(mess_num.length()<4)
                 mess_num = "0"+mess_num;
-        message = ("DIFF "+ mess_num +" "+id+ " "+mess.substring(0, 140)+"\r\n").getBytes();
+        message = ("DIFF "+ mess_num +" "+id+ " "+mess.substring(0, mess.length() > 140 ? 140 : mess.length() )+"\r\n").getBytes();
         message_number++;
         return message;
     }
@@ -210,7 +210,7 @@ public class Diffuser{
                             BufferedReader br = new BufferedReader(new InputStreamReader(thread_client.use_sock().getInputStream()));
                             PrintWriter pw = new PrintWriter(new OutputStreamWriter(thread_client.use_sock().getOutputStream()));
                             String message = br.readLine();
-
+                            System.out.println(message+"of len" + message.length());
                             if( message == null ) { 
                                 log("client " + thread_client +" Disconnected");
                                 thread_client.use_sock().close();
