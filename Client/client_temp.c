@@ -15,7 +15,7 @@
 void * lecture_term(void * arg);
 void * ecriture_term(void * arg);
 
-char id[100];
+char id[12];
 
 int main() {
 
@@ -24,7 +24,7 @@ int main() {
     int r=0;
 
     while(1) {
-        r = read(0, id, 100); // Retourne taille de l'input + 1
+        r = read(0, id, 12); // Retourne taille de l'input + 1
         if(r<=9) break;
     }
 
@@ -63,6 +63,7 @@ void * lecture_term(void * arg) {
     // char cmd[3];
 
     char mess[150];
+    char cmdToSend[170];
 
     char rep[5];
 
@@ -104,11 +105,13 @@ void * lecture_term(void * arg) {
                     }
                 }
                 
-                printf("You're %s and you want to transmit this : %s of length %ld\n", id, mess, strlen(mess));
-                strcat(mess, "\r\n");
-                send(sock, mess, strlen(mess)*sizeof(char), 0); // Envoie de MESS id message
+                // printf("You're %s and you want to transmit this : %s of length %ld\n", id, mess, strlen(mess));
+                sprintf(cmdToSend, "MESS %s %s\r\n", id, mess);
+                // strcat(mess, "\r");
+                send(sock, cmdToSend, strlen(cmdToSend)*sizeof(char), 0); // Envoie de MESS id message
                 int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
                 rep[size_rec] = '\0';
+                printf("%s\n", rep);
             } else {
                 printf("Pas encore fait LAST\n");
             }
