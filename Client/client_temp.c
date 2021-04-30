@@ -59,7 +59,7 @@ int main() {
 
 void * lecture_term(void * arg) {
 
-    char cmd[100];
+    char cmd[150];
 
     char rep[5];
 
@@ -74,7 +74,23 @@ void * lecture_term(void * arg) {
 
     if(r != -1) {
         while(1) {
-            read(0, cmd, 100);
+            read(0, cmd, 150);
+            int r=0;
+
+            while(1) {
+                r = read(0, cmd, 150); // Retourne taille de l'input + 1
+                if(r<=141) break;
+            }
+
+            cmd[r-1] = '\0'; 
+            
+            int tailleCMD = strlen(cmd);
+            printf("Taille commande %d\n", tailleCMD);
+            if(tailleCMD < 140) {
+                for(int i=0; i< 140 - tailleCMD; i++) {
+                    strcat(cmd, "#");
+                }
+            }
             printf("You're %s and you want to transmit this : %s\n", id, cmd);
 
             send(sock, cmd, strlen(cmd)*sizeof(char), 0); // Envoie de MESS id message
