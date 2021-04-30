@@ -16,6 +16,8 @@ void * ecriture_term(void * arg);
 
 char id[100];
 
+char cmds[] = {'M', 'L'};
+
 int main() {
 
     printf("Rentrez votre pseudo :\n");
@@ -59,7 +61,9 @@ int main() {
 
 void * lecture_term(void * arg) {
 
-    char cmd[150];
+    char cmd[3];
+
+    char mess[150];
 
     char rep[5];
 
@@ -73,33 +77,44 @@ void * lecture_term(void * arg) {
     int r = connect(sock, (struct sockaddr *) &adress_sock, sizeof(struct sockaddr_in));
 
     if(r != -1) {
+
+        int r=0;
+
         while(1) {
-            read(0, cmd, 150);
-            int r=0;
-
             while(1) {
-                r = read(0, cmd, 150); // Retourne taille de l'input + 1
-                if(r<=141) break;
+                r = read(0, cmd, 5);
+                if(r<=2 && (cmd[0]==cmds[0] || cmd[0]==cmds[1])) break;
             }
 
-            cmd[r-1] = '\0'; 
-            
-            int tailleCMD = strlen(cmd);
-            printf("Taille commande %d\n", tailleCMD);
-            if(tailleCMD < 140) {
-                for(int i=0; i< 140 - tailleCMD; i++) {
-                    strcat(cmd, "#");
+            if(cmd[0] == cmds[0]) {
+
+                while(1) {
+                    r = read(0, mess, 150); // Retourne taille de l'input + 1
+                    if(r<=141) break;
                 }
-            }
-            printf("You're %s and you want to transmit this : %s\n", id, cmd);
 
-            send(sock, cmd, strlen(cmd)*sizeof(char), 0); // Envoie de MESS id message
-            int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
-            rep[size_rec] = '\0';
-        }
+                mess[r-1] = '\0'; 
+                
+                int tailleCMD = strlen(mess);
+                printf("Taille commande %d\n", tailleCMD);
+                if(tailleCMD < 140) {
+                    for(int i=0; i< 140 - tailleCMD; i++) {
+                        strcat(mess, "#");
+                    }
+                }
+                printf("You're %s and you want to transmit this : %s\n", id, mess);
+
+                send(sock, mess, strlen(mess)*sizeof(char), 0); // Envoie de MESS id message
+                int size_rec = recv(sock, rep, 5*sizeof(char), 0); // Reception de ACKM
+                rep[size_rec] = '\0';
+            } else {
+                printf("Pas encore fait LAST\n");
+            }
 
         close(sock);
     }
+            }
+            
 
     return NULL;
 
