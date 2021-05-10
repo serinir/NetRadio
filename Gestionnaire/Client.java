@@ -30,9 +30,11 @@ public class Client {
 
 	public boolean is_alive() {
 		if (should_send_keepalive()) {
+			should_send_keepalive=System.currentTimeMillis();
 			send_keepalive();
 		}
-		return (System.currentTimeMillis() - keepalive) / 1000 < Gestionnaire.KEEPALIVE_TIME;
+		
+		return keepalive==0 || (System.currentTimeMillis() - keepalive) / 1000 < Gestionnaire.KEEPALIVE_TIME;
 
 	}
 
@@ -45,7 +47,7 @@ public class Client {
 	}
 
 	public void send(String content) {
-		pw.print(content);
+		pw.println(content);
 		pw.flush();
 	}
 
