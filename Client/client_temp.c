@@ -12,7 +12,11 @@
 #include <fcntl.h>
 
 #define LEN_OLDM 159
-#define LEN_ITEM 55
+#define LEN_ITEM 57
+
+pthread_mutex_t verrou = PTHREAD_MUTEX_INITIALIZER;
+
+char * setting(char * mess);
 
 void * chat_gestionnaire(void * arg);
 void * lecture_term(void * arg);
@@ -26,7 +30,9 @@ char port2[7];
 
 char id[12];
 
-int main() {
+int main(int argc, char * argv[]) { // Mettre le chemin d'accès au terminal dans argv[1]
+
+
 
     printf("Rentrez votre pseudo :\n");
 
@@ -49,31 +55,7 @@ int main() {
 
     printf("Votre pseudo est : %s\n", id);
 
-
-
-    pthread_t th1, th2;
-
-    int rep1 = pthread_create(&th1, NULL, lecture_term, NULL); // Lancement de thread qui s'occupe de la communication avec le diffuseur
-    int rep2 = pthread_create(&th2, NULL, ecriture_term, NULL); // Lancement du thread qui s'occupe d'écouter le diffuseur
-    pthread_join(th1, NULL);
-    pthread_join(th2, NULL);
-
-
-    if(rep1 != 0 || rep2 != 0) {
-        printf("Problème création thread\n");
-        exit(0);
-    }
-
-    return 0;
-}
-
-void * lecture_term(void * arg) {
-
-    char * mess = malloc(sizeof(char) * 150);
-    char * nb_mess = malloc(sizeof(char) * 5);
     char * cmdToSend = malloc(sizeof(char) * 170);
-
-    char rep[5];
 
     // CREATION SOCKET GESTIONNAIRE
     struct sockaddr_in adress_sock_gest;
@@ -95,20 +77,51 @@ void * lecture_term(void * arg) {
 
         int size_rec_gest = 0;
 
-        size_rec_gest = recv(sock_gest, linb, 12*sizeof(char), 0);
+        size_rec_gest = recv(sock_gest, linb, 11*sizeof(char), 0);
+        linb[size_rec_gest] = '\0';
         printf("%s\n", linb);
 
-        do {
-            size_rec_gest = recv(sock_gest, currentItem, LEN_ITEM*sizeof(char)+15, 0); // Reception des OLD MESSAGES
+        // do {
+            size_rec_gest = recv(sock_gest, currentItem, LEN_ITEM*sizeof(char)+1, 0); // Reception des ITEM
             currentItem[size_rec_gest] = '\0';
-            strncpy(ip1, currentItem+14, 15);
-            strncpy(port1, currentItem+30, 4);
-            strncpy(ip2, currentItem+35, 15);
-            strncpy(port2, currentItem+51, 4);
+            strncat(ip1, currentItem+14, 15);
+            strncat(port1, currentItem+30, 4);
+            strncat(ip2, currentItem+35, 15);
+            strncat(port2, currentItem+51, 4);
             printf("%s\n", currentItem);
-        } while(size_rec_gest != 0);
+            // pause();
+        // } while(size_rec_gest != 0);
 
+        close(sock_gest);
     }
+
+
+
+
+
+    pthread_t th1, th2;
+
+    int rep1 = pthread_create(&th1, NULL, lecture_term, NULL); // Lancement de thread qui s'occupe de la communication avec le diffuseur
+    int rep2 = pthread_create(&th2, NULL, ecriture_term, argv[1]); // Lancement du thread qui s'occupe d'écouter le diffuseur
+    pthread_join(th1, NULL);
+    pthread_join(th2, NULL);
+
+
+    if(rep1 != 0 || rep2 != 0) {
+        printf("Problème création thread\n");
+        exit(0);
+    }
+
+    return 0;
+}
+
+void * lecture_term(void * arg) {
+
+    char * mess = malloc(sizeof(char) * 150);
+    char * nb_mess = malloc(sizeof(char) * 5);
+    char * cmdToSend = malloc(sizeof(char) * 170);
+
+    char rep[5];
 
     int sock_diff = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -202,7 +215,6 @@ void * lecture_term(void * arg) {
             }
         }
         close(sock_diff);
-        close(sock_gest);
     }
             
     return NULL;
@@ -211,7 +223,9 @@ void * lecture_term(void * arg) {
 
 void * ecriture_term(void * arg) {
 
-    int fd = open("/dev/pts/4", O_RDWR);
+    char * path = ((char *) arg);
+
+    int fd = open(path, O_RDWR);
 
     if(fd==-1) {
         perror("open");
@@ -225,14 +239,17 @@ void * ecriture_term(void * arg) {
 
     struct sockaddr_in address_sock;
     address_sock.sin_family=AF_INET;
-    address_sock.sin_port=htons(5000); // port de multidiffusion
+    // pthread_mutex_lock(&verrou);
+    address_sock.sin_port=htons(atoi(port1)); // port de multidiffusion
     address_sock.sin_addr.s_addr=htonl(INADDR_ANY);
 
     r=bind(sock, (struct sockaddr *)&address_sock, 
         sizeof(struct sockaddr_in));
 
     struct ip_mreq mreq;
-    mreq.imr_multiaddr.s_addr=inet_addr("225.10.20.30"); // Adresse de multidiffusion
+    printf("%s\n", setting(ip1));
+    mreq.imr_multiaddr.s_addr=inet_addr(setting(ip1)); // Adresse de multidiffusion
+    pthread_mutex_unlock(&verrou);
     mreq.imr_interface.s_addr=htonl(INADDR_ANY);
 
     r=setsockopt(sock, IPPROTO_IP, 
@@ -252,4 +269,23 @@ void * ecriture_term(void * arg) {
 
     close(fd);
     return NULL;
+}
+
+char * setting(char * mess) {
+    char * temp = malloc(strlen(mess) * sizeof(char));
+    int i=0, j=0;
+    while(i<strlen(mess)) {
+        if((mess[i] == '.') && (mess[i+1] == '0')) {
+            temp[j] = mess[i];
+            i++;
+        } else {
+            temp[j] = mess[i];
+        }
+        j++;
+        i++;
+    }
+
+    return temp;
+
+    
 }
