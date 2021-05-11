@@ -12,28 +12,39 @@ public class Gestionnaire {
 	public static final int KEEPALIVE_TIME = 20;
 	public static final int SEND_KEEPALIVE_TIME = 5;
 	public static int port = 4242;
-	private static ArrayList<Diffuseur> diffuseurs = new ArrayList<Diffuseur>(100);
-	private static ArrayList<Client> clients = new ArrayList<Client>();
+	private static volatile ArrayList<Diffuseur> diffuseurs = new ArrayList<Diffuseur>(100);
+	private static volatile ArrayList<Client> clients = new ArrayList<Client>();
+	private static volatile ArrayList<Client> to_disconnect = new ArrayList<Client>();
+	private static volatile ArrayList<Client> to_add = new ArrayList<Client>();
+	private static volatile boolean locked;
 
+	public static void connect(Client client)
+	{
+		while(locked){}
+		locked = true;
+		to_add.add(client);	
+		locked = false;
+	}
+	
 	public static void disconnect(Client client) {
-		client.disconnect();
-		clients.remove(client);
-		if (client instanceof Diffuseur) {
-			diffuseurs.remove((Diffuseur) client);
-		}
+		while(locked){}
+		locked = true;
+		to_disconnect.add(client);
+		locked = false;
 	}
 
 	public static void listen_new_client() {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
-
+				System.out.println("Listening");
 				ServerSocket server;
 				try {
 					server = new ServerSocket(port);
 					while (true) {
 						Socket socket = server.accept();
-						clients.add(new Client(socket));
+						System.out.println("Nouvelle connexion");
+						connect(new Client(socket));
 					}
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -48,6 +59,20 @@ public class Gestionnaire {
 			@Override
 			public void run() {
 				while (true) {
+					while(locked){}
+					locked = true;
+					for(Client client : to_disconnect) {
+						client.disconnect();
+						clients.remove(client);
+						if (client instanceof Diffuseur) {
+							diffuseurs.remove((Diffuseur) client);
+						}
+					}
+					for(Client client : to_add) 
+					{
+						clients.add(client);
+					}
+					locked = false;
 					for (Client client : clients) {
 						if (client.is_alive()) {
 							if (client.has_data()) {
@@ -60,6 +85,9 @@ public class Gestionnaire {
 								}
 								args.add(content);
 								String packet_type = args.get(0);
+								for(String arg : args) {
+									System.out.println("arguments : "+arg);
+								}
 								if (packet_type.equals("LIST")) {
 									client.send("LINB " + diffuseurs.size());
 									for (Diffuseur diffuseur : diffuseurs) {
@@ -73,7 +101,7 @@ public class Gestionnaire {
 										Diffuseur diffuseur = new Diffuseur(client.getSocket(), args.get(1),
 												args.get(2), args.get(3), Integer.parseInt(args.get(4)),
 												Integer.parseInt(args.get(5)));
-										clients.add(diffuseur);
+										connect(diffuseur);
 										diffuseurs.add(diffuseur);
 										disconnect(client);
 										diffuseur.send("REOK");
@@ -97,6 +125,7 @@ public class Gestionnaire {
 	}
 
 	public static void main(String[] args) {
+		System.out.println("Gestionnaire lancé");
 		try {
 			Path path = Paths.get(System.getProperty("user.dir")+"config.txt");
 			if(Files.exists(path)) {
