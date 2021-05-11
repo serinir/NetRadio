@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -97,12 +98,16 @@ public class Diffuser{
     private String _ENDTOKEN = "ENDM\r\n";
     private String _ACKMTOKEN = "ACKM\r\n";
     private String _IMOK = "IMOK\r\n";
+    private String _RUOK = "RUOK";
+    private String _REOK = "REOK";
+    private String _RENO = "RENO";
 
 
     private Map<String,String> env;
-    // private char[] sid = new char[8];
-    // private int single_port;
+    private char[] sid = new char[8];
+    private int single_port;
     private InetSocketAddress diff_ip; // Address de multi_diffusion
+    private InetSocketAddress gestionnaire;
     private int diff_port;
     private boolean connected;
     private int frequencey;
@@ -126,6 +131,8 @@ public class Diffuser{
         this.diff_port = Integer.parseInt(this.env.get("DIFF_PORT"));
         this.frequencey = Integer.parseInt(this.env.get("DIFF_FREQ")); 
         this.diff_ip = new InetSocketAddress(this.env.get("DIFF_IP"),this.diff_port);
+        this.single_port = Integer.parseInt(this.env.get("SERV_PORT"));
+
         log("variables loaded");
         // setup the socket UDP
         try {
@@ -211,11 +218,13 @@ public class Diffuser{
                             PrintWriter pw = new PrintWriter(new OutputStreamWriter(thread_client.use_sock().getOutputStream()));
                             String message = br.readLine();
                             System.out.println(message+"of len" + message.length());
+                            
                             if( message == null ) { 
                                 log("client " + thread_client +" Disconnected");
                                 thread_client.use_sock().close();
                                 break;
                             }
+                            
                             System.out.println("received this : "+message);
                             Data data = Checker.check(message);
                             if(data instanceof Checker.MessData){
@@ -251,20 +260,50 @@ public class Diffuser{
 
         }
     }
-    //
-    // private boolean is_well_formatted_mess(String mess){
-    //     //TODO with REGEX
-    //     return true;
-    // }
-    //
-    // synchronized private void update_messages(String message){
-    //     try {
-    //         messages.add_message("haloa","0001");
-    //     } catch (Exception e) {
-    //         logerr("couldn't add message to the queue");
-    //     }
-    // }
 
+    private Socket register(String host,int port) throws IOException{
+        InetSocketAddress ia = new InetSocketAddress(host,port);
+        this.sid =  "12345678".toCharArray() ;
+        String sid2 = "12345678";
+        String message = "REGI "+sid2+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost() +" "+this.single_port; 
+        Socket soc = new Socket();
+        soc.connect(ia);
+
+        PrintWriter pw = new PrintWriter(new OutputStreamWriter(soc.getOutputStream()));
+        BufferedReader br = new BufferedReader(new InputStreamReader(soc.getInputStream()));
+        pw.write(message);
+        pw.flush();
+        
+        String response = br.readLine();
+        if( response.strip().equals(this._REOK)){
+            log("Connected to the gestionnaire "+host+":"+port);
+            this.gestionnaire = ia;
+            return soc;
+        }else if( response.equals(this._RENO)){
+            logerr("Connection to the gestionnaire "+host+":"+port+" Refused");
+        }
+        else{
+            logerr("Wrong Response from gestionnaire "+host+":"+port);
+        }
+        
+        soc.close();//en ferme la connexion
+        return null;
+    }
+    public void connect_gestio(String host,int port) throws IOException{
+        Socket gestio_sock = register(host, port);
+       
+        if( gestio_sock != null ){
+            PrintWriter pw = new PrintWriter(new OutputStreamWriter(gestio_sock.getOutputStream()));
+            BufferedReader br = new BufferedReader(new InputStreamReader(gestio_sock.getInputStream()));
+            while(true){
+                String mess = br.readLine();
+                if(mess.equals(this._RUOK)){
+                    pw.write(this._IMOK);
+                    pw.flush();   
+                }
+            }
+        }
+    }
     /**
      * log the states in the terminals
      * @param _log
