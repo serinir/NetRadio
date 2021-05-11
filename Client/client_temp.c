@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define LEN_OLDM 159
+#define LEN_OLDM 161
 #define LEN_ITEM 57
 
 pthread_mutex_t verrou = PTHREAD_MUTEX_INITIALIZER;
@@ -75,22 +75,44 @@ int main(int argc, char * argv[]) { // Mettre le chemin d'accès au terminal dan
 
         send(sock_gest, cmdToSend, strlen(cmdToSend)*sizeof(char), 0);
 
-        int size_rec_gest = 0;
+        int size_rec_gest;
 
-        size_rec_gest = recv(sock_gest, linb, 11*sizeof(char), 0);
+        size_rec_gest = recv(sock_gest, linb, 12*sizeof(char), 0);
         linb[size_rec_gest] = '\0';
         printf("%s\n", linb);
 
-        // do {
-            size_rec_gest = recv(sock_gest, currentItem, LEN_ITEM*sizeof(char)+1, 0); // Reception des ITEM
-            currentItem[size_rec_gest] = '\0';
-            strncat(ip1, currentItem+14, 15);
-            strncat(port1, currentItem+30, 4);
-            strncat(ip2, currentItem+35, 15);
-            strncat(port2, currentItem+51, 4);
-            printf("%s\n", currentItem);
-            // pause();
-        // } while(size_rec_gest != 0);
+        char * Items[99];
+        int cmpt=0;
+
+        int size_rec = 1;
+
+
+        while(size_rec != 0) {
+            size_rec = recv(sock_gest, currentItem, LEN_ITEM*sizeof(char)+2, 0); // Reception des ITEM
+            currentItem[size_rec] = '\0';
+            if(size_rec > 3) {
+                sleep(0.1);
+                printf("%d ", cmpt);
+                
+                printf("%s\n", currentItem);
+
+                Items[cmpt++] = strdup(currentItem);
+            }
+            
+        }
+
+        printf("\nVeuillez choisir un de ces diffuseurs : \n -----------> ");
+        char rep[2];
+        read(0, rep, 1);
+
+        int choix = atoi(rep);
+
+        strncat(ip1, Items[choix]+14, 15);
+        strncat(port1, Items[choix]+30, 4);
+        strncat(ip2, Items[choix]+35, 15);
+        strncat(port2, Items[choix]+51, 4);
+
+
 
         close(sock_gest);
     }
