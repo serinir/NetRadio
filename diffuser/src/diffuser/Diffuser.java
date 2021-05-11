@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.ConnectException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -104,7 +105,7 @@ public class Diffuser{
 
 
     private Map<String,String> env;
-    private char[] sid = new char[8];
+    private String sid = new String();
     private int single_port;
     private InetSocketAddress diff_ip; // Address de multi_diffusion
     private InetSocketAddress gestionnaire;
@@ -118,6 +119,7 @@ public class Diffuser{
 
     public Diffuser(){
         //Load the env Variables
+
         try {
             this.env = ConfigEnv.load_variables("./.env.xml");
             
@@ -125,6 +127,7 @@ public class Diffuser{
             this.env = null;
             logerr("path to variable not found : ./.env.xml");
         }
+
         // Declare the message attribute
         messages = new Message();
         // Setup the different variables
@@ -132,6 +135,10 @@ public class Diffuser{
         this.frequencey = Integer.parseInt(this.env.get("DIFF_FREQ")); 
         this.diff_ip = new InetSocketAddress(this.env.get("DIFF_IP"),this.diff_port);
         this.single_port = Integer.parseInt(this.env.get("SERV_PORT"));
+        this.sid=this.env.get("SID");
+        this.sid = this.sid.substring( 0, this.sid.length() < 8 ? this.sid.length() : 8);
+
+        while(sid.length()<8) sid+="#";
 
         log("variables loaded");
         // setup the socket UDP
@@ -263,11 +270,15 @@ public class Diffuser{
 
     private Socket register(String host,int port) throws IOException{
         InetSocketAddress ia = new InetSocketAddress(host,port);
-        this.sid =  "12345678".toCharArray() ;
-        String sid2 = "12345678";
-        String message = "REGI "+sid2+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost() +" "+this.single_port; 
+        
+        String message = "REGI "+this.sid+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost().getHostAddress() +" "+this.single_port; 
         Socket soc = new Socket();
-        soc.connect(ia);
+        try{
+            soc.connect(ia);
+        }catch(ConnectException e){
+            logerr("gestionnaire unreachable");
+            return null;
+        }
 
         PrintWriter pw = new PrintWriter(new OutputStreamWriter(soc.getOutputStream()));
         BufferedReader br = new BufferedReader(new InputStreamReader(soc.getInputStream()));

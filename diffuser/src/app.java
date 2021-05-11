@@ -30,8 +30,7 @@ public class app {
      });
      Thread alive = new Thread( ()->{
          try{
-             room.connect_gestio("localhost",5005);
-
+             room.connect_gestio(args[1],Integer.parseInt(args[2]));
          }catch (Exception e){
              e.printStackTrace();
          }
