@@ -223,7 +223,7 @@ public class Manager {
 						// Else, if client isn't alive anymore
 						else {
 							// Adding it in disconnection queue
-							disconnect(client);
+							// disconnect(client);
 						}
 					}
 				}
