@@ -169,7 +169,7 @@ public class Manager {
 					// For each registered client
 					for (Client client : get_clients()) {
 						// If client is still alive
-						if (client.is_alive()) {
+						if (true || client.is_alive()) { // TODO : REMOVE TRUE AFTER TESTS
 							// If client sent data
 							if (client.has_data()) {
 								String content = client.read_data();
@@ -223,7 +223,7 @@ public class Manager {
 						// Else, if client isn't alive anymore
 						else {
 							// Adding it in disconnection queue
-							// disconnect(client);
+							disconnect(client);
 						}
 					}
 				}
