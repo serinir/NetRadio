@@ -1,16 +1,15 @@
-package gestionnaire;
+package manager;
 
 import java.net.*;
 
-public class Diffuseur extends Client {
+public class Broadcaster {
 	private String ip1;
 	private String ip2;
 	private String id;
 	private int port1;
 	private int port2;
 
-	public Diffuseur(Socket socket, String ip1, String ip2, String id, int port1, int port2) {
-		super(socket);
+	public Broadcaster(Socket socket, String ip1, String ip2, String id, int port1, int port2) {
 		this.ip1 = ip1;
 		this.ip2 = ip2;
 		this.id = id;
