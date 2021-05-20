@@ -30,7 +30,7 @@ public class Checker {
         }
     }
     public static Data check(String mess){
-        Matcher match = Pattern.compile("MESS\\s(\\w{1,8})\\s(.{1,142})").matcher(mess);
+        Matcher match = Pattern.compile("MESS\\s(.{1,8})\\s(.{1,140})").matcher(mess);
         if (match.matches())
             return new MessData(match.group(1),match.group(2));
         match = Pattern.compile("LAST\\s(\\d+)").matcher(mess);
