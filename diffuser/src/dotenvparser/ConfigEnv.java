@@ -43,8 +43,17 @@ public class ConfigEnv {
         
         NodeList variables = env_vars.getElementsByTagName("config").item(0).getChildNodes();
         for(int i=0 ; i< variables.getLength();i++){
+            if (variables.item(i).getNodeName().equals("GEST")){
+                NodeList gestionnairies =  env_vars.getElementsByTagName("ADDR_GEST");
+                env.put("N_GEST", String.valueOf(gestionnairies.getLength()));
+                for (int j=0;j<gestionnairies.getLength();j++){
+                    var elem = gestionnairies.item(j).getChildNodes();
+                    env.put("GEST_ADDR"+String.valueOf(j),elem.item(1).getTextContent()+":"+elem.item(3).getTextContent());
+                }
+            }else
             env.put(variables.item(i).getNodeName(),variables.item(i).getTextContent());
         }
+        // System.out.println(env.get("GEST_ADDR1"));
         return env;
     }
 }
