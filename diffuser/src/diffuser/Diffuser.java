@@ -23,11 +23,18 @@ import checker.Checker.MessData;
 
 import java.text.BreakIterator;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.Map;
 import dotenvparser.ConfigEnv;
 import exceptions.ServerNotRuningException;
 
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+// import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 class Message{
     static int message_number = 0;
     private Vector<byte[]> messages_queue;
@@ -117,6 +124,7 @@ public class Diffuser{
     ServerSocket chat_socket ;
     private boolean last_message_sent = false;
 
+    int n_gestionnaires ;
     public Diffuser(){
         //Load the env Variables
 
@@ -137,7 +145,7 @@ public class Diffuser{
         this.single_port = Integer.parseInt(this.env.get("SERV_PORT"));
         this.sid=this.env.get("SID");
         this.sid = this.sid.substring( 0, this.sid.length() < 8 ? this.sid.length() : 8);
-
+        this.n_gestionnaires = Integer.parseInt(this.env.get("N_GEST"));
         while(sid.length()<8) sid+="#";
 
         log("variables loaded");
@@ -232,7 +240,7 @@ public class Diffuser{
                                 break;
                             }
                             
-                            System.out.println("received this : "+message);
+                            // System.out.println("received this : "+message);
                             Data data = Checker.check(message);
                             if(data instanceof Checker.MessData){
                                 this.messages.add_message(((MessData) data).getMessage(), ((MessData) data).getId());
@@ -251,6 +259,8 @@ public class Diffuser{
                                 }
                                 pw.print(_ENDTOKEN);
                                 pw.flush();
+                                thread_client.use_sock().close();
+                                break;
                             }else{
                                 logerr("received bad formated message from client: " + thread_client+" : "+ message);
                             }
@@ -267,7 +277,9 @@ public class Diffuser{
 
         }
     }
-
+    /**
+     * 
+     */
     private Socket register(String host,int port) throws IOException{
         InetSocketAddress ia = new InetSocketAddress(host,port);
         
@@ -300,9 +312,45 @@ public class Diffuser{
         soc.close();//en ferme la connexion
         return null;
     }
+
+    /**
+     * 
+     * @param gesto
+     * @throws IOException
+     */
+    private boolean _async_register(SelectionKey sk)throws IOException{
+        // System.out.println( "it is "+sk.isWritable());
+        var gesto =((SocketChannel)sk.channel());
+        String message = "REGI "+this.sid+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost().getHostAddress() +" "+this.single_port; 
+        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
+        ByteBuffer buffer2 = ByteBuffer.allocate(100);
+        
+        gesto.write(buffer);
+        buffer.clear();
+        gesto.read(buffer2);
+        String response = new String(buffer2.array());
+        if( response.strip().equals(this._REOK)){
+            log("Connected to the gestionnaire "+gesto.socket().getInetAddress().getHostName()+":"+gesto.socket().getPort());
+            this.gestionnaire = (InetSocketAddress) gesto.socket().getRemoteSocketAddress();
+            return true;
+        }else if( response.equals(this._RENO)){
+            logerr("Connection to the gestionnaire "+gesto.socket().getInetAddress().getHostName()+":"+gesto.socket().getPort()+" Refused");
+        }
+        else{
+            logerr("Wrong Response from gestionnaire "+gesto.socket().getInetAddress().getHostName()+":"+gesto.socket().getPort());
+        }
+        return false;
+        
+    }
+        /**
+     * 
+     * @param host
+     * @param port
+     * @throws IOException
+     */
     public void connect_gestio(String host,int port) throws IOException{
         Socket gestio_sock = register(host, port);
-       
+        
         if( gestio_sock != null ){
             PrintWriter pw = new PrintWriter(new OutputStreamWriter(gestio_sock.getOutputStream()));
             BufferedReader br = new BufferedReader(new InputStreamReader(gestio_sock.getInputStream()));
@@ -313,6 +361,65 @@ public class Diffuser{
                     pw.flush();   
                 }
             }
+        }
+    }
+     private void is_alive(SocketChannel soc) throws IOException{
+        ByteBuffer message = ByteBuffer.allocate(20);
+        ByteBuffer response = ByteBuffer.wrap(this._IMOK.getBytes());
+        soc.read(message);
+        String mess = new String(message.array());
+        if(mess.equals(this._RUOK)){
+            soc.write(response);
+        }
+    }
+    /**
+     * 
+     */
+    public void connect_gestios(){
+        ArrayList<SocketChannel> gestionnaires = new ArrayList<SocketChannel>() ;
+        // ArrayList<SocketChannel> gestionnaires = new ArrayList<SocketChannel>() ;
+        System.out.println("connected? to "+ String.valueOf(n_gestionnaires)) ;
+        try {
+            Selector sel = Selector.open();
+            for(int i = 0 ; i <n_gestionnaires;i++){
+                var addr = env.get("GEST_ADDR"+String.valueOf(i)).split(":");
+                var temp = SocketChannel.open();
+                System.out.println(addr[0]+addr[1]);
+                temp.configureBlocking(false);
+                temp.register(sel, SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+                temp.connect(new InetSocketAddress(addr[0],Integer.parseInt(addr[1])));
+            }
+            // System.out.println("werehere");
+            // System.out.println("aha");
+            while(true){
+                sel.select();
+                // System.out.println();
+                Iterator<SelectionKey> it = sel.selectedKeys().iterator();
+                // System.out.println(it);
+                while( it.hasNext() ){
+                    SelectionKey sk = it.next();
+                    it.remove();
+                    // System.out.println("humm");
+                    if( ( sk.isValid())){
+                        System.out.println("ihi");
+                        var tempsock = (SocketChannel)sk.channel();
+                        if(  gestionnaires.contains( (SocketChannel)sk.channel() )){
+                            System.out.println("on est laaa");
+                            is_alive(tempsock);
+                        }else{
+                            System.out.println("on est laabaaa");
+                            // sk.wait(10000);
+                           if(sk.isValid() && !_async_register(sk) ) {logerr("couldn't connect to gesionaire "+tempsock.socket().getInetAddress().getHostName() +":"+ String.valueOf(tempsock.socket().getPort())  );continue;}
+                            gestionnaires.add((SocketChannel)sk.channel() );
+                        }
+                    }
+
+                }
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            logerr("couldnt connect to all the gestos");
         }
     }
     /**
