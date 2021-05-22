@@ -62,6 +62,9 @@ class Message{
     public int length(){
         return this.messages_queue.size();
     }
+    synchronized public static void increment(){
+        message_number+=1;
+    }
 }
 
 class Client{
@@ -194,7 +197,11 @@ public class Diffuser{
                 this.last_message_sent= true;
             }
             else{
-                Broadcast_message(("DIFF " + this.sid + " " + Randommess.take_one()).getBytes());
+                String mess_num = String.valueOf(Message.message_number);
+                while(mess_num.length()<4)
+                mess_num = "0"+mess_num;
+                Broadcast_message(("DIFF " +mess_num+ " " + this.sid + " " + Randommess.take_one()).getBytes());
+                Message.increment();
             }
         } catch (Exception e) {
             e.printStackTrace();
