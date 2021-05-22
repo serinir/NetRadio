@@ -283,7 +283,7 @@ public class Diffuser{
     private Socket register(String host,int port) throws IOException{
         InetSocketAddress ia = new InetSocketAddress(host,port);
         
-        String message = "REGI "+this.sid+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost().getHostAddress() +" "+this.single_port; 
+        String message = "REGI "+this.sid+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost().getHostAddress() +" "+this.single_port+"\n\r"; 
         Socket soc = new Socket();
         try{
             soc.connect(ia);
@@ -376,51 +376,25 @@ public class Diffuser{
      * 
      */
     public void connect_gestios(){
-        ArrayList<SocketChannel> gestionnaires = new ArrayList<SocketChannel>() ;
+        ArrayList<Socket> gestionnaires = new ArrayList<Socket>() ;
         // ArrayList<SocketChannel> gestionnaires = new ArrayList<SocketChannel>() ;
-        System.out.println("connected? to "+ String.valueOf(n_gestionnaires)) ;
-        try {
-            Selector sel = Selector.open();
-            for(int i = 0 ; i <n_gestionnaires;i++){
-                var addr = env.get("GEST_ADDR"+String.valueOf(i)).split(":");
-                var temp = SocketChannel.open();
-                System.out.println(addr[0]+addr[1]);
-                temp.configureBlocking(false);
-                temp.register(sel, SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-                temp.connect(new InetSocketAddress(addr[0],Integer.parseInt(addr[1])));
-            }
-            // System.out.println("werehere");
-            // System.out.println("aha");
-            while(true){
-                sel.select();
-                // System.out.println();
-                Iterator<SelectionKey> it = sel.selectedKeys().iterator();
-                // System.out.println(it);
-                while( it.hasNext() ){
-                    SelectionKey sk = it.next();
-                    it.remove();
-                    // System.out.println("humm");
-                    if( ( sk.isValid())){
-                        System.out.println("ihi");
-                        var tempsock = (SocketChannel)sk.channel();
-                        if(  gestionnaires.contains( (SocketChannel)sk.channel() )){
-                            System.out.println("on est laaa");
-                            is_alive(tempsock);
-                        }else{
-                            System.out.println("on est laabaaa");
-                            // sk.wait(10000);
-                           if(sk.isValid() && !_async_register(sk) ) {logerr("couldn't connect to gesionaire "+tempsock.socket().getInetAddress().getHostName() +":"+ String.valueOf(tempsock.socket().getPort())  );continue;}
-                            gestionnaires.add((SocketChannel)sk.channel() );
-                        }
-                    }
-
+       for (int i = 0 ; i< n_gestionnaires;i++){
+           final int j = i;
+           new Thread(()->{
+                var temp = env.get("GEST_ADDR"+String.valueOf(j)).split(":");
+                try {
+                    connect_gestio(temp[0],Integer.parseInt(temp[1]));
+                } catch (NumberFormatException e) {
+                   logerr("format issue in .env");
+                   return;
+                } catch (IOException e) {
+                    
+                    logerr("format issue in .env");
+                    // e.printStackTrace();
+                    return;
                 }
-
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            logerr("couldnt connect to all the gestos");
-        }
+           }).start();
+       }
     }
     /**
      * log the states in the terminals
