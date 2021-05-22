@@ -31,6 +31,7 @@ public class app {
      Thread alive = new Thread( ()->{
          try{
             //  room.connect_gestio(args[1],Integer.parseInt(args[2]));
+            
             room.connect_gestios();
             //  room.connect_gestio(args[3],Integer.parseInt(args[4]));
          }catch (Exception e){

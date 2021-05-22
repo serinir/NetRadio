@@ -1,85 +1,75 @@
-package manager;
-
+// package manager;
+//package home.ghosto.Bureau.Cours.S6.PR.Projet.netradio.Gestionnaire;
 import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.io.*;
 
 /**
- * Class that manage connections with clients / broadcasters and packet's
- * handling.
+ * Class that manage connections with clients / broadcasters and packet's handling.
  * 
- * @author Nejma Smatti
+ * @author Nejma
  */
 public class Manager {
 	/**
-	 * Constant that contains the maximum amount of broadcasters this manager can
-	 * handle.
+	 * Constant that contains the maximum amount of broadcasters this manager can handle.
 	 */
 	public static final int MAX_BROADCASTERS = 100;
-
+	
 	/**
 	 * Variable that contains the instance of the main manager.
 	 */
 	private static Manager _instance;
-
+	
 	/**
 	 * Variable that contains the port where this manager is running at.
 	 */
 	public int port;
 	/**
-	 * Variable that contains every broadcaster subscribed to this manager. This
-	 * variable is volatile to set access to this variable as atomic, this will
-	 * ensure us to always get latest value of this variable when calling
-	 * {@link #get_broadcasters()} even if the method is called from another thread.
+	 * Variable that contains every broadcaster subscribed to this manager.
+	 * This variable is volatile to set access to this variable as atomic, this will ensure us to always get latest value of this 
+	 * variable when calling {@link #get_broadcasters()} even if the method is called from another thread.
 	 */
 	private volatile ArrayList<Broadcaster> broadcasters = new ArrayList<Broadcaster>(MAX_BROADCASTERS);
 	/**
-	 * Variable that contains every clients subscribed to this manager. This
-	 * variable is volatile to set access to this variable as atomic, this will
-	 * ensure us to always get latest value of this variable when calling
-	 * {@link #get_clients()} even if the method is called from another thread.
+	 * Variable that contains every clients subscribed to this manager.
+	 * This variable is volatile to set access to this variable as atomic, this will ensure us to always get latest value of this 
+	 * variable when calling {@link #get_clients()} even if the method is called from another thread.
 	 */
 	private volatile ArrayList<Client> clients = new ArrayList<Client>();
 	/**
-	 * Variable that queue clients that need to get disconnected. Pending
-	 * disconnections will be managed in {@link #manage_client()}.
+	 * Variable that queue clients that need to get disconnected. 
+	 * Pending disconnections will be managed in {@link #manage_client()}.
 	 */
 	private ArrayList<Client> to_disconnect = new ArrayList<Client>();
 	/**
-	 * Variable that queue clients that are waiting for being registered to this
-	 * manager. Pending connections will be managed in {@link #manage_client()}.
+	 * Variable that queue clients that are waiting for being registered to this manager. 
+	 * Pending connections will be managed in {@link #manage_client()}.
 	 */
 	private ArrayList<Client> to_connect = new ArrayList<Client>();
-	/**
-	 * Variable that contains the thread pool that will execute every client's tasks.
-	 * This will automatically dispatch tasks in available threads and considerably restrict thread 
-	 * size comparing to a simple thread per client system that wont be able to handle a large volume of users.
-	 */
-	private ThreadPoolExecutor thread_pool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
-
+		
 	/**
 	 * Manager's constructor.
-	 * 
+	 *  
 	 * @param port Port where this manager should listen to.
 	 */
-	public Manager(int port) {
+	public Manager(int port)
+	{
 		this.port = port;
 		listen_new_client();
 		manage_client();
 	}
-
+	
 	/**
 	 * Method used to get main instance of the manager.
 	 * 
 	 * @return Main instance of this manager.
 	 */
-	public static Manager get_instance() {
+	public static Manager getInstance()
+	{
 		return _instance;
 	}
 
@@ -102,27 +92,10 @@ public class Manager {
 	}
 
 	/**
-	 * Method used to register a broadcast to broadcasters list.
-	 * 
-	 * @param broadcaster Broadcaster that we want to register.
-	 * @return True if broadcaster has been registered, false otherwise.
-	 */
-	public boolean register_broadcaster(Broadcaster broadcaster) {
-		if (broadcasters.size() < MAX_BROADCASTERS) {
-			// Registering broadcaster
-			get_broadcasters().add(broadcaster);
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Method used to add a client in the queue of clients that are waiting for
-	 * being registered. Pending connections will be managed in
-	 * {@link #manage_client()}.
+	 * Method used to add a client in the queue of clients that are waiting for being registered.
+	 * Pending connections will be managed in {@link #manage_client()}.
 	 *
-	 * @param client Client that we want to register.
+	 * @return Client that we want to register.
 	 */
 	public void connect(Client client) {
 		synchronized (to_connect) {
@@ -131,9 +104,8 @@ public class Manager {
 	}
 
 	/**
-	 * Method used to add a client in the queue of clients that need to get
-	 * disconnected. Pending disconnections will be managed in
-	 * {@link #manage_client()}.
+	 * Method used to add a client in the queue of clients that need to get disconnected.
+	 * Pending disconnections will be managed in {@link #manage_client()}.
 	 * 
 	 * @param client Client that need to get disconnected.
 	 */
@@ -144,9 +116,8 @@ public class Manager {
 	}
 
 	/**
-	 * Method that will start a thread to listen to every incoming connections and
-	 * creating the associated {@link Client} instance and registering it using
-	 * {@link #connect(Client)}
+	 * Method that will start a thread to listen to every incoming connections and creating the associated {@link Client} instance
+	 * and registering it using {@link #connect(Client)}
 	 */
 	private void listen_new_client() {
 		new Thread(new Runnable() {
@@ -167,11 +138,20 @@ public class Manager {
 			}
 		}).start();
 	}
-
+	public String setting(String ip){
+        ArrayList<String> out = new ArrayList<String>() ;
+        var subips= ip.split("\\.");
+        for (var e : subips){
+            while (e.length()<3){
+                e = "0"+e;
+            }
+            out.add(e);
+        }
+        return String.join(".",out);
+    }
 	/**
-	 * Method used to listen to incoming packets from {@link #clients} and manage
-	 * queues of connections ({@link #to_connect} and disconnections
-	 * {@link #to_disconnect}.
+	 * Method used to listen to incoming packets from {@link #clients} 
+	 * and manage queues of connections ({@link #to_connect} and disconnections {@link #to_disconnect}.
 	 */
 	private void manage_client() {
 		new Thread(new Runnable() {
@@ -181,11 +161,11 @@ public class Manager {
 					synchronized (to_disconnect) {
 						// Disconnecting every client in the queue
 						for (Client client : to_disconnect) {
-							if (client.is_broadcasting()) {
-								get_broadcasters().remove(client.get_broadcasting());
+							client.disconnect();
+							if(client.get_broadcasting() != null) {
+								broadcasters.remove(client.get_broadcasting());
 							}
 							clients.remove(client);
-							client.disconnect();
 						}
 						to_disconnect.clear();
 					}
@@ -194,27 +174,75 @@ public class Manager {
 						for (Client client : to_connect) {
 							clients.add(client);
 						}
-						// Defining thread pool size to 1 thread every 10 clients
-						thread_pool.setCorePoolSize(clients.size() / 10 + 1);
 						to_connect.clear();
 					}
 					// For each registered client
 					for (Client client : get_clients()) {
 						// If client is still alive
-						if (client.is_alive()) {
+						if (true || client.is_alive()) { // TODO : REMOVE TRUE AFTER TESTS
 							// If client sent data
 							if (client.has_data()) {
-								// Submitting task in our thread pool
-								thread_pool.submit(() -> {
-									try {
-										client.manage_data();
-									} catch (Exception e) {
-										e.printStackTrace();
-										client.send("FAIL");
+								String content = client.read_data();
+								// System.out.println(content);
+								ArrayList<String> args = new ArrayList<String>();
+								int index;
+								// Parsing arguments and adding them in args
+								while ((index = content.indexOf(' ')) != -1) {
+									args.add(content.substring(0, index));
+									content = content.substring(index+1);
+									// System.out.println(content);
+								}
+								args.add(content);
+								String packet_type = args.get(0);
+								// System.out.println(packet_type);
+								// If user is asking to view the list of every broadcasters
+								if (packet_type.equals("LIST")) {
+									client.send("LINB " + broadcasters.size()+"\r\n");
+									for (Broadcaster diffuseur : get_broadcasters()) {
+										 client.send("ITEM " + diffuseur.get_id() + ' ' + setting(diffuseur.get_ip1()) + ' '
+										 		+ diffuseur.get_port1() + ' ' + setting(diffuseur.get_ip2()) + ' '
+										 		+ diffuseur.get_port2()+"\r\n");
+										//client.send("ITEM " + "IMADSERV" + " " + "225.010.020.030" + " "
+										//		+ "5000" + " " + "192.168.070.128" + " "
+										//		+ "5051"+"\r\n");
 									}
-								});
+									try {
+										client.getSocket().close();
+									} catch (IOException e) {
+										// TODO Auto-generated catch block
+										e.printStackTrace();
+									}
+								} 
+								// Else if user is trying to register
+								else if (packet_type.equals("REGI")) {
+									// If client isn't broadcasting and manager didn't reach max clients capacity
+									// System.out.println("Regi arrivé");
+									if (!client.is_broadcasting() && broadcasters.size() < MAX_BROADCASTERS) {
+										// Creating broadcaster using specified arguments by client
+										Broadcaster broadcaster = new Broadcaster(client.getSocket(), args.get(2),
+												args.get(4), args.get(1), Integer.parseInt(args.get(3)),
+												Integer.parseInt(args.get(5)));
+										// Registering broadcaster
+										broadcasters.add(broadcaster);
+										// Setting broadcasting of client
+										client.set_broadcasting(broadcaster);
+										// Sending OK answer
+										client.send("REOK\r\n");
+									} 
+									// Else if client is already broadcasting or manager reached max clients capacity
+									else {
+										// Sending NO answer
+										client.send("RENO\r\n");
+
+									}
+								}
+								// Else if user send a keep alive packet
+								else if (packet_type.equals("IMOK")) {
+									// Reseting keep alive
+									client.reset_keepalive();
+								}
 							}
-						}
+						} 
 						// Else, if client isn't alive anymore
 						else {
 							// Adding it in disconnection queue
@@ -223,15 +251,11 @@ public class Manager {
 					}
 				}
 			}
+
 		}).start();
 
 	}
 
-	/**
-	 * Main method of our Manager
-	 * 
-	 * @param args Process args
-	 */
 	public static void main(String[] args) {
 		int port = 4242;
 		try {

@@ -2,188 +2,335 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netdb.h>
+#include <sys/socket.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#define LEN_ITEM 55
-#define LEN_LINB 7
-#define LEN_OLDM 25
+#define LEN_OLDM 161
+#define LEN_ITEM 57
 
-void * chat_diffuseur(void *arg);
-void * chat_gestionnaire(void *arg);
+pthread_mutex_t verrou = PTHREAD_MUTEX_INITIALIZER;
 
-struct info_client {
-    int sock;
-    char * id;
-};
+char * setting(char * mess);
 
-int main() {
+void * chat_gestionnaire(void * arg);
+void * lecture_term(void * arg);
+void * ecriture_term(void * arg);
 
-    char * id_cli = malloc(9 * sizeof(char));
+char ip1[17];
+char port1[7];
 
-    printf("Quel est votre id ?\n");
-    int n_carac;
-    while((n_carac = read(0, id_cli, 8)) > 8);
+char ip2[17];
+char port2[7];
 
-    struct addrinfo *first_info;
+char id[12];
 
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
+int main(int argc, char * argv[]) { // Mettre le chemin d'accès au terminal dans argv[1]
 
-    hints.ai_family = AF_INET;
-    hints.ai_socktype=SOCK_STREAM;
+    // ./client_temp /dev/pts/x 192.168.70.x num_port_libre
 
-    // Recherche de gestionnaire, 5555 numéro temporaire
-    int rgai = getaddrinfo("localhost", "5555" ,&hints, &first_info); 
-
-    if(rgai==0 ){
-        if(first_info!=NULL){
-            struct sockaddr_in *address_in = (struct sockaddr_in *) first_info->ai_addr;
-            // Numero 5555 temporaire où le client communique gestionnaire
-            address_in->sin_port = htons(5555);
-            int sock=socket(PF_INET, SOCK_STREAM, 0);
-            int r2 = connect(sock, (struct sockaddr*) address_in, sizeof(struct sockaddr_in));
-
-            if(r2 != -1) {
-                char cmdList[7];
-                char reponseGest[100000]; // Numero arbitraire, le temps de calculer vraie valeur de la taille de la liste des diffuseurs
-                
-                strcpy(cmdList, "LIST\r\n");
-                send(sock, cmdList, strlen(cmdList) * sizeof(char), 0);
-
-                int rec = recv(sock, reponseGest, 100000 * sizeof(char), 0);
-                reponseGest[rec] = '\0';
-                char nb_diff[3];
-                
-                strncpy(reponseGest+4, nb_diff, 2);
-                nb_diff[2] = '\0';
-
-                // TABLEAU DIFF
-                char * tab_diff[strlen(reponseGest)/LEN_ITEM + 2];
-                for(int i=0; i<atoi(nb_diff); i++) {
-                    tab_diff[i] = strndup(reponseGest+LEN_LINB+LEN_ITEM*i, LEN_ITEM);
-                }
-
-                // FIN TABLEAU DIFF
-                
-
-                memset(nb_diff, 0, 3);
-
-                printf("Quel diffuseur voulez-vous écouter ?\n");
-                read(0, nb_diff, 2); // Lecture du numéro du diffuseur à écouter
-
-                int sock_diff=socket(PF_INET, SOCK_DGRAM, 0);
-
-                int ok=1;
-                int r=setsockopt(sock_diff, SOL_SOCKET, SO_REUSEPORT, &ok, sizeof(ok)); // PORT REUTILISABLE, DESFOIS ON MET SO_REUSEADDR ( pour le projet notamment )
-
-                struct sockaddr_in address_sock;
-                address_sock.sin_family = AF_INET;
-                address_sock.sin_port = htons(9999);
-                address_sock.sin_addr.s_addr = htonl(INADDR_ANY);
-
-                r=bind(sock_diff, (struct sockaddr *)&address_sock, 
-                    sizeof(struct sockaddr_in));
-
-                struct ip_mreq mreq;
-                char * ip_multi_diff = malloc(16 * sizeof(char));
-                mreq.imr_multiaddr.s_addr=inet_addr(strncpy(ip_multi_diff, tab_diff[atoi(nb_diff)]+14, 15)); // Choix du diffuseur
-                mreq.imr_interface.s_addr=htonl(INADDR_ANY);
-
-                r = setsockopt(sock_diff, IPPROTO_IP, 
-                    IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)); // On abonne la socket
-
-                if (r==0) {
-                    
-                    while(1){
-                        
-                        struct info_client i_cli;
-                        i_cli.id = strdup(id_cli);
-                        i_cli.sock = sock_diff;
-                        pthread_t th;
-                        pthread_create(&th, NULL, chat_diffuseur, &i_cli);
-                    }   
-                }
+    if(argc != 4) {
+        perror("Mauvais nombre d'arguments");
+        exit(EXIT_FAILURE);
+    }
 
 
+    printf("Rentrez votre pseudo :\n");
 
-                close(sock);
-            }
+    int r=0;
 
+    while(1) {
+        r = read(0, id, 12); // Retourne taille de l'input + 1
+        if(r<=9) break;
+    }
+
+    id[r-1] = '\0'; 
+    
+    int tailleId = strlen(id);
+    printf("Taille ID %d\n", tailleId);
+    if(tailleId < 8) {
+        for(int i=0; i< 8 - tailleId; i++) {
+            strcat(id, "#");
         }
     }
+
+    printf("Votre pseudo est : %s\n", id);
+
+    char * cmdToSend = malloc(sizeof(char) * 170);
+
+    // CREATION SOCKET GESTIONNAIRE
+    struct sockaddr_in adress_sock_gest;
+    adress_sock_gest.sin_family = AF_INET;
+    adress_sock_gest.sin_port = htons(atoi(argv[3]));
+    inet_aton(argv[2], &adress_sock_gest.sin_addr);
+
+    int sock_gest = socket(PF_INET, SOCK_STREAM, 0);
+
+    int r_gest;
+    r_gest = connect(sock_gest, (struct sockaddr *) &adress_sock_gest, sizeof(struct sockaddr_in));
+
+    if(r_gest != -1) {
+        char * currentItem = malloc(LEN_ITEM * sizeof(char)+15);
+        char * linb = malloc(15*sizeof(char));
+        int size_rec_gest;
+        char * nbre_working_diffs = malloc(3*sizeof(char));
+        while(1) {
+            r_gest = connect(sock_gest, (struct sockaddr *) &adress_sock_gest, sizeof(struct sockaddr_in));
+            bzero(nbre_working_diffs, strlen(nbre_working_diffs));
+            bzero(cmdToSend, strlen(cmdToSend));
+            sprintf(cmdToSend, "LIST\r\n");
+
+            send(sock_gest, cmdToSend, strlen(cmdToSend)*sizeof(char), 0);
+
+            size_rec_gest = recv(sock_gest, linb, 10*sizeof(char), 0);
+            linb[size_rec_gest] = '\0';
+            printf("%s\n", linb);
+            sscanf(linb, "LINB %s\r\n", nbre_working_diffs);
+            if(atoi(nbre_working_diffs) != 0) break;
+            else {
+                printf("Pas de diffuseurs disponibles, je reviens dans 3 secondes\n");
+                sleep(3);
+                sock_gest = socket(PF_INET, SOCK_STREAM, 0);
+            }
+        }
+
+        char * Items[99];
+        int cmpt=0;
+
+        int size_rec = 1;
+
+
+        while(size_rec != 0) {
+            size_rec = recv(sock_gest, currentItem, LEN_ITEM*sizeof(char), 0); // Reception des ITEM
+            currentItem[size_rec] = '\0';
+            if(size_rec > 3) { 
+                printf("%d %s\n",cmpt, currentItem);
+
+                Items[cmpt] = strdup(currentItem);
+                cmpt = cmpt +1;
+            }
+            
+        }
+
+        printf("\nVeuillez choisir un de ces diffuseurs : \n -----------> ");
+        char rep[2];
+        read(0, rep, 1);
+
+        int choix = atoi(rep);
+        sscanf(Items[choix], "ITEM %*s %s %s %s %s", ip1, port1, ip2, port2); 
+        close(sock_gest);
+    } else {
+        perror("Erreur connexion gestionnaire");
+    }
+
+
+    pthread_t th1, th2;
+
+    int rep1 = pthread_create(&th1, NULL, lecture_term, NULL); // Lancement de thread qui s'occupe de la communication avec le diffuseur
+    int rep2 = pthread_create(&th2, NULL, ecriture_term, argv[1]); // Lancement du thread qui s'occupe d'écouter le diffuseur
+    pthread_join(th1, NULL);
+    pthread_join(th2, NULL);
+
+
+    if(rep1 != 0 || rep2 != 0) {
+        printf("Problème création thread\n");
+        exit(0);
+    }
+
     return 0;
 }
 
-void * chat_diffuseur(void * arg){
-    struct info_client * cli = (struct info_client *)arg;
+void * lecture_term(void * arg) {
 
-    int so = cli->sock;
-    char * id = cli->id;
+    char * mess = malloc(sizeof(char) * 150);
+    char * nb_mess = malloc(sizeof(char) * 5);
+    char * cmdToSend = malloc(sizeof(char) * 170);
+    char * currentOldM = malloc(LEN_OLDM * sizeof(char)+4);
 
-    struct sockaddr_in adress_sock;
-    adress_sock.sin_family = AF_INET;
-    adress_sock.sin_port = htons(4242);
-    inet_aton("127.0.0.1",&adress_sock.sin_addr);
+    char * rep = malloc(sizeof(char)*7);
 
-    int r=connect(so, (struct sockaddr *)&adress_sock,
-                sizeof(struct sockaddr_in));
+    int sock_diff = socket(PF_INET, SOCK_STREAM, 0);
 
-    if(r!=-1){
-        char choice[3];
-        char buffMess[160];
-        char Mess[140];
+    // CREATION SOCKET DIFFUSEUR
+    struct sockaddr_in adress_sock_diff;
+    adress_sock_diff.sin_family = AF_INET;
+    adress_sock_diff.sin_port = htons(atoi(port2));
+    inet_aton(setting(ip2), &adress_sock_diff.sin_addr);
 
-        printf("Press S to send a message and R ro receive the last ones\n");
-        read(0, choice, 3);
-        if(strcmp(choice, "S")==0) {
-            sprintf(buffMess, "MESS %s", id);
 
-            int tailleMess = read(0, Mess, 140);
-            Mess[tailleMess] = '\0';
+    int r_diff; 
 
-            strcat(buffMess, Mess);
-            strcat(buffMess, "\r\n");
+    int r=0;
+    int size_rec;
 
-            send(so, buffMess, strlen(buffMess)*sizeof(char), 0);
-            memset(buffMess, 0, strlen(buffMess));
+    int tailleMess;
+    int tailleNbMess;
 
-            int size_rec=recv(so, buffMess, 6*sizeof(char),0);
-            buffMess[size_rec]='\0';
+    char temp;
 
-            printf("Message : %s\n",buffMess);
-        } else {
-            if(strcmp(choice, "R")==0) {
-                memset(choice, 0, strlen(choice));
-
-                printf("Choose a number between 0 et 999\n");
-                read(0, choice, 3);
-
-                int nb_mess = atoi(choice);
-                sprintf(buffMess, "LAST %d\r\n", nb_mess);
-
-                memset(buffMess, 0, strlen(buffMess));
-
-                int size_rec=recv(so, buffMess, nb_mess*LEN_OLDM*sizeof(char),0);
-                buffMess[size_rec]='\0';
-                printf("Les derniers messages sont: %s\n",buffMess);
-
-                memset(buffMess, 0, strlen(buffMess));
-
-                size_rec=recv(so, buffMess, 6*sizeof(char),0);
-                buffMess[size_rec]='\0';
-
-                printf("Message : %s\n",buffMess);
+    while(1) {
+        
+        r_diff = connect(sock_diff, (struct sockaddr *) &adress_sock_diff, sizeof(struct sockaddr_in));
+        if(r_diff != -1){
+            while(1) {
+                r = getchar();
+                if(r=='M' || r=='L') break;
             }
+            bzero(cmdToSend, strlen(cmdToSend));
+            bzero(rep, strlen(rep));
+            bzero(mess, strlen(mess));
+            bzero(nb_mess, strlen(nb_mess));
+            bzero(currentOldM, strlen(currentOldM));
+            printf("---> Commande choisie : %c\n", r);
+
+            if(r == 'M') { // Case M
+                printf("Saisissez un message d'au plus 140 caractères\n");
+                while(1) {
+                    r = read(0, mess, 150); // Retourne taille de l'input + 1
+                    if(r<=141) break;
+                }
+
+                mess[r-1] = '\0'; 
+                
+                tailleMess = strlen(mess);
+                printf("Taille message %d\n", tailleMess);
+                
+                if(tailleMess < 140) {
+                    for(int i=0; i< 140 - tailleMess; i++) {
+                        strcat(mess, "#");
+                    }
+                }
+                // printf("we added the # in the thread 1\n");
+                
+                sprintf(cmdToSend, "MESS %s %s\r\n", id, mess);
+                // printf("what to send : %s of len %ld\n", cmdToSend, strlen(mess));
+                
+                send(sock_diff, cmdToSend, strlen(cmdToSend)*sizeof(char), 0); // Envoie de MESS id message
+                size_rec = recv(sock_diff, rep, 5*sizeof(char), 0); // Reception de ACKM
+                rep[size_rec] = '\0';
+                printf("%s\n", rep);
+
+            } else { // Case L
+                printf("Saisissez un nombre entre 1 et 999\n");  
+                while(1) {
+                    r = read(0, nb_mess, 5); // Retourne taille de l'input + a
+                    nb_mess[r-1] = '\0';
+                    if((r<=4) && (atoi(nb_mess) >= 1 && atoi(nb_mess) <= 999)) break;
+                    
+                }
+
+                tailleNbMess = strlen(nb_mess);
+                if(tailleNbMess < 3) {
+                    for(int i=0; i< 3 - tailleNbMess; i++) {
+                        strcat(nb_mess, "0");
+                    }
+
+                    temp = nb_mess[0];
+                    nb_mess[0] = nb_mess[2];
+                    nb_mess[2] = temp;
+                }
+
+
+
+                
+                printf("Vous allez recevoir au plus %d messages\n", atoi(nb_mess));
+
+                sprintf(cmdToSend, "LAST %s\r\n", nb_mess);
+
+                send(sock_diff, cmdToSend, strlen(cmdToSend)*sizeof(char), 0);
+
+                size_rec = 0;
+
+                do {
+                    size_rec = recv(sock_diff, currentOldM, LEN_OLDM*sizeof(char)+15, 0); // Reception des OLD MESSAGES
+                    currentOldM[size_rec] = '\0';
+                    printf("%s", currentOldM);
+                } while(size_rec != 0);
+                
+
+                
+            }
+            close(sock_diff);
+            sock_diff = socket(PF_INET, SOCK_STREAM, 0);
         }
-
     }
-    
-    free(arg);
-    close(so);
 
+    close(sock_diff);
+            
     return NULL;
 }
+
+
+void * ecriture_term(void * arg) {
+
+    char * path = ((char *) arg);
+
+    int fd = open(path, O_RDWR);
+
+    if(fd==-1) {
+        perror("open");
+        exit(1);
+    }
+
+    int sock=socket(PF_INET, SOCK_DGRAM, 0);
+
+    int ok=1;
+    int r=setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)); // PORT REUTILISABLE, DESFOIS ON MET SO_REUSEADDR ( pour le projet notamment )
+
+    struct sockaddr_in address_sock;
+    address_sock.sin_family=AF_INET;
+    pthread_mutex_lock(&verrou);
+    address_sock.sin_port=htons(atoi(port1)); // port de multidiffusion
+    address_sock.sin_addr.s_addr=htonl(INADDR_ANY);
+
+    r=bind(sock, (struct sockaddr *)&address_sock, 
+        sizeof(struct sockaddr_in));
+
+    struct ip_mreq mreq;
+    printf("%s\n", setting(ip1));
+    mreq.imr_multiaddr.s_addr=inet_addr(setting(ip1)); // Adresse de multidiffusion
+    pthread_mutex_unlock(&verrou);
+    mreq.imr_interface.s_addr=htonl(INADDR_ANY);
+
+    r=setsockopt(sock, IPPROTO_IP, 
+        IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)); // On abonne la socket
+
+    if (r==0) {
+        char tampon[100];
+        
+        while(1){
+            int rec=recv(sock, tampon, 100, 0);
+            tampon[rec]='\0';
+            write(fd, tampon,strlen(tampon));
+            write(fd, "\n", 2);
+        }   
+    }
+    
+
+    close(fd);
+    return NULL;
+}
+
+char * setting(char * mess) {
+    char * temp = malloc(strlen(mess) * sizeof(char));
+    int i=0, j=0;
+    while(i<strlen(mess)) {
+        if((mess[i] == '.') && (mess[i+1] == '0')) {
+            temp[j] = mess[i];
+            i++;
+        } else {
+            temp[j] = mess[i];
+        }
+        j++;
+        i++;
+    }
+
+    return temp;
+    
+}
+
