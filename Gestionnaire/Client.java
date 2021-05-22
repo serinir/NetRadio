@@ -171,7 +171,7 @@ public class Client {
 	 * @param port2 Second port
 	 */
 	@NetworkMethod(name = "REGI", weight = 1.5)
-	public void set_broadcasting(String ip1, String ip2, String id, int port1, int port2) {
+	public void set_broadcasting(String id, String ip1, int port1, String ip2, int port2) {
 		// If we aren't broadcasting
 		if (!is_broadcasting()) {
 			// Creating broadcaster using specified arguments by client
