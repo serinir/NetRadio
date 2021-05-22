@@ -194,7 +194,7 @@ public class Diffuser{
                 this.last_message_sent= true;
             }
             else{
-                Broadcast_message(Randommess.take_one().getBytes());
+                Broadcast_message(("DIFF " + this.sid + " " + Randommess.take_one()).getBytes());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -209,6 +209,7 @@ public class Diffuser{
     private void Broadcast_message(byte[] formated_message) throws Exception{
         if(!connected) throw new ServerNotRuningException();
         DatagramPacket diffused = new DatagramPacket(formated_message,formated_message.length,this.diff_ip);
+        // System.out.println(new String(formated_message));
         udp_broadcast_socket.send(diffused);
         log("message broadcasted");
     }
