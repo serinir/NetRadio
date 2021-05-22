@@ -296,19 +296,22 @@ public class Diffuser{
         BufferedReader br = new BufferedReader(new InputStreamReader(soc.getInputStream()));
         pw.write(message);
         pw.flush();
-        
-        String response = br.readLine();
-        if( response.strip().equals(this._REOK)){
-            log("Connected to the gestionnaire "+host+":"+port);
-            this.gestionnaire = ia;
-            return soc;
-        }else if( response.equals(this._RENO)){
-            logerr("Connection to the gestionnaire "+host+":"+port+" Refused");
+        try {
+            String response = br.readLine();
+            if( response.strip().equals(this._REOK)){
+                log("Connected to the gestionnaire "+host+":"+port);
+                this.gestionnaire = ia;
+                return soc;
+            }else if( response.equals(this._RENO)){
+                logerr("Connection to the gestionnaire "+host+":"+port+" Refused");
+            }
+            else{
+                logerr("Wrong Response from gestionnaire "+host+":"+port);
+            }
+        } catch (NullPointerException e) {
+            logerr("Gestionnaire "+host+":"+String.valueOf(port)+" is Down");
         }
-        else{
-            logerr("Wrong Response from gestionnaire "+host+":"+port);
-        }
-        
+
         soc.close();//en ferme la connexion
         return null;
     }
@@ -354,13 +357,15 @@ public class Diffuser{
         if( gestio_sock != null ){
             PrintWriter pw = new PrintWriter(new OutputStreamWriter(gestio_sock.getOutputStream()));
             BufferedReader br = new BufferedReader(new InputStreamReader(gestio_sock.getInputStream()));
-            while(true){
-                String mess = br.readLine();
-                if(mess.equals(this._RUOK)){
-                    pw.write(this._IMOK);
-                    pw.flush();   
+            try{
+                while(true){
+                    String mess = br.readLine();
+                    if(mess.equals(this._RUOK)){
+                        pw.write(this._IMOK);
+                        pw.flush();   
+                    }
                 }
-            }
+            }catch(NullPointerException e){logerr("Gestionnaire "+host+":"+String.valueOf(port)+" is Down");}
         }
     }
      private void is_alive(SocketChannel soc) throws IOException{
@@ -380,17 +385,19 @@ public class Diffuser{
         // ArrayList<SocketChannel> gestionnaires = new ArrayList<SocketChannel>() ;
        for (int i = 0 ; i< n_gestionnaires;i++){
            final int j = i;
+        //    System.out.println(n_gestionnaires+"  "+j);
            new Thread(()->{
                 var temp = env.get("GEST_ADDR"+String.valueOf(j)).split(":");
                 try {
+                    System.out.println(temp[0]+"_"+temp[1]);
                     connect_gestio(temp[0],Integer.parseInt(temp[1]));
                 } catch (NumberFormatException e) {
                    logerr("format issue in .env");
                    return;
                 } catch (IOException e) {
                     
-                    logerr("format issue in .env");
-                    // e.printStackTrace();
+                    logerr("ahhhhhaformat issue in .env");
+                    e.printStackTrace();
                     return;
                 }
            }).start();
