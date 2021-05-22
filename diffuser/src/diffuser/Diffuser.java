@@ -59,6 +59,9 @@ class Message{
         if (i < 0) return this.messages_queue.get(this.messages_queue.size()-1-(i+1));
         return this.messages_queue.get(i);
     }
+    public void add_message(String mess){
+        messages_queue.add(mess.getBytes());
+    }
     public int length(){
         return this.messages_queue.size();
     }
@@ -200,7 +203,9 @@ public class Diffuser{
                 String mess_num = String.valueOf(Message.message_number);
                 while(mess_num.length()<4)
                 mess_num = "0"+mess_num;
-                Broadcast_message(("DIFF " +mess_num+ " " + this.sid + " " + Randommess.take_one()).getBytes());
+                String temp = "DIFF " +mess_num+ " " + this.sid + " " + Randommess.take_one();
+                this.messages.add_message(temp);
+                Broadcast_message(temp.getBytes());
                 Message.increment();
             }
         } catch (Exception e) {
