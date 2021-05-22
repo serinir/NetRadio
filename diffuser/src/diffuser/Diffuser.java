@@ -35,6 +35,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 // import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+
+import java.util.Random;
 class Message{
     static int message_number = 0;
     private Vector<byte[]> messages_queue;
@@ -94,6 +96,24 @@ class Client{
     @Override
     public String toString() {
         return  this.username != null ? this.username : this.client_id != null ? this.client_id : String.valueOf(this.sock.getPort())  ;
+    }
+}
+
+class Randommess{
+    public static String take_one(){
+        String truc[]={
+            "La boheme, la boheme########################################################################################################################\r\n",
+            "Je vous parle dun temps#####################################################################################################################\r\n",
+            "Que les moins de vingt ans##################################################################################################################\r\n",
+            "Ne peuvent pas connaitre####################################################################################################################\r\n",
+            "Accrochait ses lilas########################################################################################################################\r\n",
+            "Jusque sous nos fenetres####################################################################################################################\r\n",
+            "Et si l'humble garni########################################################################################################################\r\n",
+            "Qui nous servait de nid#####################################################################################################################\r\n"
+        };
+    
+        int randomInt = new Random().nextInt( truc.length )  ;
+        return truc[randomInt];
     }
 }
 /**
@@ -173,6 +193,9 @@ public class Diffuser{
                 Broadcast_message(this.messages.get_message(-1));
                 this.last_message_sent= true;
             }
+            else{
+                Broadcast_message(Randommess.take_one().getBytes());
+            }
         } catch (Exception e) {
             e.printStackTrace();
             logerr("message not sent");
@@ -204,7 +227,7 @@ public class Diffuser{
             logerr("cannot open a new Tcp socket");
         }
         try {
-            log("TCP SERVER RUNING ON : "+Inet4Address.getLocalHost().getHostAddress()+":"+this.env.get("SERV_PORT"));
+            log("TCP SERVER RUNING ON : "+setting(Inet4Address.getLocalHost().getHostAddress())+":"+this.env.get("SERV_PORT"));
         } catch (UnknownHostException e) {
             log("TCP SERVER RUNING ON : "+"localhost"+":"+this.env.get("SERV_PORT"));
         }
@@ -232,7 +255,7 @@ public class Diffuser{
                             BufferedReader br = new BufferedReader(new InputStreamReader(thread_client.use_sock().getInputStream()));
                             PrintWriter pw = new PrintWriter(new OutputStreamWriter(thread_client.use_sock().getOutputStream()));
                             String message = br.readLine();
-                            System.out.println(message+"of len" + message.length());
+                            // System.out.println(message+"of len" + message.length());
                             
                             if( message == null ) { 
                                 log("client " + thread_client +" Disconnected");
@@ -252,7 +275,7 @@ public class Diffuser{
                                 break;
                             }else if(data instanceof Checker.LastData){
                                 int nb = ((Checker.LastData) data).getNb();
-                                System.out.println(nb);
+                                // System.out.println(nb);
                                 for (int i = 0;i<messages.length() && i < nb; i++) {
                                     pw.print("OLDM" + new String(messages.get_message( messages.length()-1-i)).substring(4) );
                                     pw.flush();
@@ -266,8 +289,7 @@ public class Diffuser{
                             }
                         }
                     } catch (IOException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
+                       logerr("client disconnected");
                     }
                 }).start();
             } catch (IOException e) {
@@ -288,6 +310,9 @@ public class Diffuser{
         try{
             soc.connect(ia);
         }catch(ConnectException e){
+            logerr("gestionnaire unreachable");
+            return null;
+        }catch(UnknownHostException e2){
             logerr("gestionnaire unreachable");
             return null;
         }
@@ -324,7 +349,7 @@ public class Diffuser{
     private boolean _async_register(SelectionKey sk)throws IOException{
         // System.out.println( "it is "+sk.isWritable());
         var gesto =((SocketChannel)sk.channel());
-        String message = "REGI "+this.sid+" "+this.env.get("DIFF_IP")+" "+this.diff_port+" "+ InetAddress.getLocalHost().getHostAddress() +" "+this.single_port; 
+        String message = "REGI "+this.sid+" "+ setting(this.env.get("DIFF_IP"))+" "+this.diff_port+" "+ setting(InetAddress.getLocalHost().getHostAddress()) +" "+this.single_port; 
         ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
         ByteBuffer buffer2 = ByteBuffer.allocate(100);
         
@@ -389,14 +414,14 @@ public class Diffuser{
            new Thread(()->{
                 var temp = env.get("GEST_ADDR"+String.valueOf(j)).split(":");
                 try {
-                    System.out.println(temp[0]+"_"+temp[1]);
+                    // System.out.println(temp[0]+"_"+temp[1]);
                     connect_gestio(temp[0],Integer.parseInt(temp[1]));
                 } catch (NumberFormatException e) {
                    logerr("format issue in .env");
                    return;
                 } catch (IOException e) {
                     
-                    logerr("ahhhhhaformat issue in .env");
+                    logerr("connexion to gestionnaire issue");
                     e.printStackTrace();
                     return;
                 }
@@ -424,5 +449,16 @@ public class Diffuser{
      */
     public int getFrequencey() {
         return frequencey;
+    }
+    public String setting(String ip){
+        String out = "";
+        var subips= ip.split("\\.");
+        for (var e : subips){
+            while (e.length()<3){
+                e = "0"+e;
+            }
+            out += e+".";
+        }
+        return out;
     }
 }
