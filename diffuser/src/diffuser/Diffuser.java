@@ -451,14 +451,14 @@ public class Diffuser{
         return frequencey;
     }
     public String setting(String ip){
-        String out = "";
+        ArrayList<String> out = new ArrayList<String>() ;
         var subips= ip.split("\\.");
         for (var e : subips){
             while (e.length()<3){
                 e = "0"+e;
             }
-            out += e+".";
+            out.add(e);
         }
-        return out;
+        return String.join(".",out);
     }
 }
