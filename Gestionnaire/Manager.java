@@ -30,16 +30,12 @@ public class Manager {
 	public int port;
 	/**
 	 * Variable that contains every broadcaster subscribed to this manager.
-	 * This variable is volatile to set access to this variable as atomic, this will ensure us to always get latest value of this 
-	 * variable when calling {@link #get_broadcasters()} even if the method is called from another thread.
 	 */
-	private volatile ArrayList<Broadcaster> broadcasters = new ArrayList<Broadcaster>(MAX_BROADCASTERS);
+	private ArrayList<Broadcaster> broadcasters = new ArrayList<Broadcaster>(MAX_BROADCASTERS);
 	/**
 	 * Variable that contains every clients subscribed to this manager.
-	 * This variable is volatile to set access to this variable as atomic, this will ensure us to always get latest value of this 
-	 * variable when calling {@link #get_clients()} even if the method is called from another thread.
 	 */
-	private volatile ArrayList<Client> clients = new ArrayList<Client>();
+	private ArrayList<Client> clients = new ArrayList<Client>();
 	/**
 	 * Variable that queue clients that need to get disconnected. 
 	 * Pending disconnections will be managed in {@link #manage_client()}.
@@ -179,68 +175,77 @@ public class Manager {
 					// For each registered client
 					for (Client client : get_clients()) {
 						// If client is still alive
-						if (true || client.is_alive()) { // TODO : REMOVE TRUE AFTER TESTS
+						if (client.is_alive()) {
 							// If client sent data
 							if (client.has_data()) {
-								String content = client.read_data();
-								// System.out.println(content);
-								ArrayList<String> args = new ArrayList<String>();
-								int index;
-								// Parsing arguments and adding them in args
-								while ((index = content.indexOf(' ')) != -1) {
-									args.add(content.substring(0, index));
-									content = content.substring(index+1);
-									// System.out.println(content);
-								}
-								args.add(content);
-								String packet_type = args.get(0);
-								// System.out.println(packet_type);
-								// If user is asking to view the list of every broadcasters
-								if (packet_type.equals("LIST")) {
-									client.send("LINB " + broadcasters.size()+"\r\n");
-									for (Broadcaster diffuseur : get_broadcasters()) {
-										 client.send("ITEM " + diffuseur.get_id() + ' ' + setting(diffuseur.get_ip1()) + ' '
-										 		+ diffuseur.get_port1() + ' ' + setting(diffuseur.get_ip2()) + ' '
-										 		+ diffuseur.get_port2()+"\r\n");
-										//client.send("ITEM " + "IMADSERV" + " " + "225.010.020.030" + " "
-										//		+ "5000" + " " + "192.168.070.128" + " "
-										//		+ "5051"+"\r\n");
-									}
-									try {
-										client.getSocket().close();
-									} catch (IOException e) {
-										// TODO Auto-generated catch block
-										e.printStackTrace();
-									}
-								} 
-								// Else if user is trying to register
-								else if (packet_type.equals("REGI")) {
-									// If client isn't broadcasting and manager didn't reach max clients capacity
-									// System.out.println("Regi arrivé");
-									if (!client.is_broadcasting() && broadcasters.size() < MAX_BROADCASTERS) {
-										// Creating broadcaster using specified arguments by client
-										Broadcaster broadcaster = new Broadcaster(client.getSocket(), args.get(2),
-												args.get(4), args.get(1), Integer.parseInt(args.get(3)),
-												Integer.parseInt(args.get(5)));
-										// Registering broadcaster
-										broadcasters.add(broadcaster);
-										// Setting broadcasting of client
-										client.set_broadcasting(broadcaster);
-										// Sending OK answer
-										client.send("REOK\r\n");
-									} 
-									// Else if client is already broadcasting or manager reached max clients capacity
-									else {
-										// Sending NO answer
-										client.send("RENO\r\n");
+								final String data = client.read_data();
+								new Thread
+								(
+									new Runnable()
+									{
+										@Override
+										public void run()
+										{
+											String content = data;
+											// System.out.println(content);
+											ArrayList<String> args = new ArrayList<String>();
+											int index;
+											// Parsing arguments and adding them in args
+											while ((index = content.indexOf(' ')) != -1) {
+												args.add(content.substring(0, index));
+												content = content.substring(index+1);
+												// System.out.println(content);
+											}
+											args.add(content);
+											String packet_type = args.get(0);
+											// System.out.println(packet_type);
+											// If user is asking to view the list of every broadcasters
+											if (packet_type.equals("LIST")) {
+												client.send("LINB " + broadcasters.size());
+												for (Broadcaster diffuseur : get_broadcasters()) {
+													 client.send("ITEM " + diffuseur.get_id() + ' ' + setting(diffuseur.get_ip1()) + ' '
+															+ diffuseur.get_port1() + ' ' + setting(diffuseur.get_ip2()) + ' '
+															+ diffuseur.get_port2());
+												}
+												try {
+													client.getSocket().close();
+												} catch (IOException e) {
+													// TODO Auto-generated catch block
+													e.printStackTrace();
+												}
+											} 
+											// Else if user is trying to register
+											else if (packet_type.equals("REGI")) {
+												// If client isn't broadcasting and manager didn't reach max clients capacity
+												// System.out.println("Regi arrivÃ©");
+												if (!client.is_broadcasting() && broadcasters.size() < MAX_BROADCASTERS) {
+													// Creating broadcaster using specified arguments by client
+													Broadcaster broadcaster = new Broadcaster(client.getSocket(), args.get(2),
+															args.get(4), args.get(1), Integer.parseInt(args.get(3)),
+															Integer.parseInt(args.get(5)));
+													// Registering broadcaster
+													broadcasters.add(broadcaster);
+													// Setting broadcasting of client
+													client.set_broadcasting(broadcaster);
+													// Sending OK answer
+													client.send("REOK");
+												} 
+												// Else if client is already broadcasting or manager reached max clients capacity
+												else {
+													// Sending NO answer
+													client.send("RENO");
+
+												}
+											}
+											// Else if user send a keep alive packet
+											else if (packet_type.equals("IMOK")) {
+												// Reseting keep alive
+												client.reset_keepalive();
+											}
+										}
 
 									}
-								}
-								// Else if user send a keep alive packet
-								else if (packet_type.equals("IMOK")) {
-									// Reseting keep alive
-									client.reset_keepalive();
-								}
+								).start();
 							}
 						} 
 						// Else, if client isn't alive anymore

@@ -112,12 +112,11 @@ public class Client {
 	 * @return True if time since last keep alive packet is < {@value #KEEPALIVE_TIME} seconds, false otherwise
 	 */
 	public boolean is_alive() {
-		if (should_send_keepalive()) {
+		if (is_broadcasting() && should_send_keepalive()) {
 			should_send_keepalive=System.currentTimeMillis();
 			send_keepalive();
 		}
-		return (System.currentTimeMillis() - keepalive) / 1000 < KEEPALIVE_TIME;
-
+		return !socket.isClosed() && (!is_broadcasting() || (System.currentTimeMillis() - keepalive) / 1000 < KEEPALIVE_TIME);
 	}
 
 	/**
@@ -142,8 +141,7 @@ public class Client {
 	 * @param content Content of the packet we want to send to this client
 	 */
 	public void send(String content) {
-		print_writer.write(content);
-		print_writer.flush();
+		print_writer.println(content);
 	}
 
 	/**
